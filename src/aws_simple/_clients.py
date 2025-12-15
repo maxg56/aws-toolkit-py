@@ -1,6 +1,6 @@
 """Internal AWS clients factory (not exposed in public API)."""
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
@@ -12,14 +12,14 @@ from .exceptions import ClientInitializationError
 class AWSClients:
     """Factory for creating and caching AWS service clients."""
 
-    _s3_client: Optional[Any] = None
-    _textract_client: Optional[Any] = None
-    _bedrock_runtime_client: Optional[Any] = None
+    _s3_client: Any | None = None
+    _textract_client: Any | None = None
+    _bedrock_runtime_client: Any | None = None
 
     @classmethod
-    def _get_session_kwargs(cls) -> Dict[str, str]:
+    def _get_session_kwargs(cls) -> dict[str, str]:
         """Get boto3 session configuration."""
-        kwargs: Dict[str, str] = {"region_name": config.aws_region}
+        kwargs: dict[str, str] = {"region_name": config.aws_region}
         if config.aws_profile:
             kwargs["profile_name"] = config.aws_profile
         return kwargs

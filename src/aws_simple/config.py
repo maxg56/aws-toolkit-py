@@ -1,7 +1,6 @@
 """Configuration management via environment variables."""
 
 import os
-from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -26,7 +25,7 @@ class Config:
         return value
 
     @staticmethod
-    def _get_optional(key: str, default: Optional[str] = None) -> Optional[str]:
+    def _get_optional(key: str, default: str | None = None) -> str | None:
         """Get optional environment variable with default."""
         return os.getenv(key, default)
 
@@ -37,7 +36,7 @@ class Config:
         return self._get_optional("AWS_REGION", "us-east-1") or "us-east-1"
 
     @property
-    def aws_profile(self) -> Optional[str]:
+    def aws_profile(self) -> str | None:
         """AWS profile name (optional, for local development)."""
         return self._get_optional("AWS_PROFILE")
 

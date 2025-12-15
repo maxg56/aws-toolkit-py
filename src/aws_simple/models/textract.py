@@ -1,7 +1,7 @@
 """Data models for Textract results."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any
 
 
 @dataclass
@@ -10,7 +10,7 @@ class TextractLine:
 
     text: str
     confidence: float
-    bounding_box: Dict[str, float]  # {top, left, width, height}
+    bounding_box: dict[str, float]  # {top, left, width, height}
 
 
 @dataclass
@@ -19,7 +19,7 @@ class TextractTable:
 
     rows: int
     columns: int
-    cells: List[List[str]]  # Matrix: rows x columns
+    cells: list[list[str]]  # Matrix: rows x columns
     confidence: float
 
 
@@ -30,8 +30,8 @@ class TextractPage:
     page_number: int
     width: float
     height: float
-    lines: List[TextractLine]
-    tables: List[TextractTable]
+    lines: list[TextractLine]
+    tables: list[TextractTable]
     raw_text: str  # All text from this page concatenated
 
 
@@ -44,11 +44,11 @@ class TextractDocument:
     No AWS Blocks exposed.
     """
 
-    pages: List[TextractPage]
+    pages: list[TextractPage]
     full_text: str  # All text concatenated across all pages
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "pages": [

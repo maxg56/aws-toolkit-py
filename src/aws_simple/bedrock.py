@@ -1,7 +1,7 @@
 """Bedrock operations module."""
 
 import json
-from typing import Any, Dict, Optional
+from typing import Any
 
 from botocore.exceptions import ClientError
 
@@ -12,10 +12,10 @@ from .exceptions import BedrockError
 
 def invoke(
     prompt: str,
-    model_id: Optional[str] = None,
+    model_id: str | None = None,
     max_tokens: int = 4096,
     temperature: float = 1.0,
-    system_prompt: Optional[str] = None,
+    system_prompt: str | None = None,
 ) -> str:
     """
     Invoke Bedrock LLM and return text response.
@@ -74,11 +74,11 @@ def invoke(
 
 def invoke_json(
     prompt: str,
-    model_id: Optional[str] = None,
+    model_id: str | None = None,
     max_tokens: int = 4096,
     temperature: float = 1.0,
-    system_prompt: Optional[str] = None,
-) -> Dict[str, Any]:
+    system_prompt: str | None = None,
+) -> dict[str, Any]:
     """
     Invoke Bedrock LLM and return parsed JSON response.
 
@@ -133,10 +133,10 @@ def _build_anthropic_request(
     prompt: str,
     max_tokens: int,
     temperature: float,
-    system_prompt: Optional[str] = None,
-) -> Dict[str, Any]:
+    system_prompt: str | None = None,
+) -> dict[str, Any]:
     """Build request body for Anthropic Claude models."""
-    body: Dict[str, Any] = {
+    body: dict[str, Any] = {
         "anthropic_version": "bedrock-2023-05-31",
         "max_tokens": max_tokens,
         "temperature": temperature,
@@ -154,7 +154,7 @@ def _build_anthropic_request(
     return body
 
 
-def _extract_anthropic_text(response_body: Dict[str, Any]) -> str:
+def _extract_anthropic_text(response_body: dict[str, Any]) -> str:
     """Extract text from Anthropic Claude response."""
     content = response_body.get("content", [])
     if not content:

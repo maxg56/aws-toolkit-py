@@ -1,6 +1,6 @@
 """Parser to transform AWS Textract Blocks into clean JSON structure."""
 
-from typing import Any, Dict, List
+from typing import Any
 
 from ..models.textract import (
     TextractDocument,
@@ -14,7 +14,7 @@ class TextractParser:
     """Transforms AWS Textract response into clean, structured format."""
 
     @staticmethod
-    def parse_response(response: Dict[str, Any]) -> TextractDocument:
+    def parse_response(response: dict[str, Any]) -> TextractDocument:
         """
         Parse Textract API response into TextractDocument.
 
@@ -30,7 +30,7 @@ class TextractParser:
         block_map = {block["Id"]: block for block in blocks}
 
         # Group blocks by page
-        pages_data: Dict[int, Dict[str, Any]] = {}
+        pages_data: dict[int, dict[str, Any]] = {}
 
         for block in blocks:
             block_type = block.get("BlockType")
@@ -49,8 +49,8 @@ class TextractParser:
                 pages_data[page_num]["tables"].append(block)
 
         # Build pages
-        pages: List[TextractPage] = []
-        all_text_parts: List[str] = []
+        pages: list[TextractPage] = []
+        all_text_parts: list[str] = []
 
         for page_num in sorted(pages_data.keys()):
             page_info = pages_data[page_num]
@@ -93,7 +93,7 @@ class TextractParser:
         )
 
     @staticmethod
-    def _parse_lines(line_blocks: List[Dict[str, Any]]) -> List[TextractLine]:
+    def _parse_lines(line_blocks: list[dict[str, Any]]) -> list[TextractLine]:
         """Parse LINE blocks into TextractLine objects."""
         lines = []
         for block in line_blocks:
@@ -120,8 +120,8 @@ class TextractParser:
 
     @staticmethod
     def _parse_tables(
-        table_blocks: List[Dict[str, Any]], block_map: Dict[str, Dict[str, Any]]
-    ) -> List[TextractTable]:
+        table_blocks: list[dict[str, Any]], block_map: dict[str, dict[str, Any]]
+    ) -> list[TextractTable]:
         """Parse TABLE blocks into TextractTable objects."""
         tables = []
 
@@ -135,7 +135,7 @@ class TextractParser:
                     break
 
             # Build cell matrix
-            cells_data: Dict[tuple[int, int], str] = {}
+            cells_data: dict[tuple[int, int], str] = {}
             max_row = 0
             max_col = 0
 
@@ -174,7 +174,7 @@ class TextractParser:
 
     @staticmethod
     def _get_cell_text(
-        cell_block: Dict[str, Any], block_map: Dict[str, Dict[str, Any]]
+        cell_block: dict[str, Any], block_map: dict[str, dict[str, Any]]
     ) -> str:
         """Extract text from a CELL block by following relationships."""
         relationships = cell_block.get("Relationships", [])

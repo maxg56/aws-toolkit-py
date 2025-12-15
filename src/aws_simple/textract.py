@@ -1,7 +1,6 @@
 """Textract operations module."""
 
 from pathlib import Path
-from typing import Optional, Union
 
 from botocore.exceptions import ClientError
 
@@ -12,7 +11,7 @@ from .exceptions import TextractError
 from .models.textract import TextractDocument
 
 
-def extract_text_from_file(local_path: Union[str, Path]) -> TextractDocument:
+def extract_text_from_file(local_path: str | Path) -> TextractDocument:
     """
     Extract text and tables from a local file using Textract.
 
@@ -55,7 +54,7 @@ def extract_text_from_file(local_path: Union[str, Path]) -> TextractDocument:
 
 def extract_text_from_s3(
     s3_key: str,
-    bucket: Optional[str] = None,
+    bucket: str | None = None,
 ) -> TextractDocument:
     """
     Extract text and tables from a document stored in S3 using Textract.
@@ -97,7 +96,7 @@ def extract_text_from_s3(
         ) from e
 
 
-def extract_text_simple_from_file(local_path: Union[str, Path]) -> str:
+def extract_text_simple_from_file(local_path: str | Path) -> str:
     """
     Extract only text (no tables) from a local file - faster operation.
 
@@ -143,7 +142,7 @@ def extract_text_simple_from_file(local_path: Union[str, Path]) -> str:
 
 def extract_text_simple_from_s3(
     s3_key: str,
-    bucket: Optional[str] = None,
+    bucket: str | None = None,
 ) -> str:
     """
     Extract only text (no tables) from S3 document - faster operation.

@@ -1,7 +1,6 @@
 """S3 operations module."""
 
 from pathlib import Path
-from typing import List, Optional, Union
 
 from botocore.exceptions import ClientError
 
@@ -11,9 +10,9 @@ from .exceptions import S3Error
 
 
 def upload_file(
-    local_path: Union[str, Path],
+    local_path: str | Path,
     s3_key: str,
-    bucket: Optional[str] = None,
+    bucket: str | None = None,
 ) -> None:
     """
     Upload a file to S3.
@@ -41,8 +40,8 @@ def upload_file(
 
 def download_file(
     s3_key: str,
-    local_path: Union[str, Path],
-    bucket: Optional[str] = None,
+    local_path: str | Path,
+    bucket: str | None = None,
 ) -> None:
     """
     Download a file from S3.
@@ -70,7 +69,7 @@ def download_file(
         ) from e
 
 
-def read_object(s3_key: str, bucket: Optional[str] = None) -> bytes:
+def read_object(s3_key: str, bucket: str | None = None) -> bytes:
     """
     Read S3 object content as bytes.
 
@@ -96,9 +95,9 @@ def read_object(s3_key: str, bucket: Optional[str] = None) -> bytes:
 
 def list_objects(
     prefix: str = "",
-    bucket: Optional[str] = None,
+    bucket: str | None = None,
     max_keys: int = 1000,
-) -> List[str]:
+) -> list[str]:
     """
     List objects in S3 bucket.
 
@@ -131,7 +130,7 @@ def list_objects(
         raise S3Error(f"Failed to list objects in s3://{bucket}/{prefix}: {e}") from e
 
 
-def object_exists(s3_key: str, bucket: Optional[str] = None) -> bool:
+def object_exists(s3_key: str, bucket: str | None = None) -> bool:
     """
     Check if an S3 object exists.
 
