@@ -6,6 +6,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
+# Test data constants for Textract responses
+HIGH_CONFIDENCE_INVOICE = 99.5
+MEDIUM_CONFIDENCE_DATE = 98.7
+BOUNDING_BOX_HEIGHT_SMALL = 0.04
+BOUNDING_BOX_HEIGHT_MEDIUM = 0.05
+BOUNDING_BOX_WIDTH_MEDIUM = 0.15
+
 
 @pytest.fixture(autouse=True)
 def mock_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -82,11 +89,11 @@ def sample_textract_response() -> dict:
                 "Id": "line-1",
                 "Page": 1,
                 "Text": "Invoice #12345",
-                "Confidence": 99.5,
+                "Confidence": HIGH_CONFIDENCE_INVOICE,
                 "Geometry": {
                     "BoundingBox": {
                         "Width": 0.2,
-                        "Height": 0.05,
+                        "Height": BOUNDING_BOX_HEIGHT_MEDIUM,
                         "Left": 0.1,
                         "Top": 0.1,
                     }
@@ -97,11 +104,11 @@ def sample_textract_response() -> dict:
                 "Id": "line-2",
                 "Page": 1,
                 "Text": "Date: 2024-01-15",
-                "Confidence": 98.7,
+                "Confidence": MEDIUM_CONFIDENCE_DATE,
                 "Geometry": {
                     "BoundingBox": {
-                        "Width": 0.15,
-                        "Height": 0.04,
+                        "Width": BOUNDING_BOX_WIDTH_MEDIUM,
+                        "Height": BOUNDING_BOX_HEIGHT_SMALL,
                         "Left": 0.1,
                         "Top": 0.2,
                     }

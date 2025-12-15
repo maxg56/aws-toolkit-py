@@ -9,6 +9,9 @@ from botocore.exceptions import ClientError
 from aws_simple import s3
 from aws_simple.exceptions import S3Error
 
+# Test data constants
+MOCK_CONTENT_LENGTH = 1234
+
 
 def test_upload_file_success(mock_s3_client: MagicMock, tmp_path: Path) -> None:
     """Test successful file upload."""
@@ -157,7 +160,7 @@ def test_list_objects_client_error(mock_s3_client: MagicMock) -> None:
 
 def test_object_exists_true(mock_s3_client: MagicMock) -> None:
     """Test object exists returns True."""
-    mock_s3_client.head_object.return_value = {"ContentLength": 1234}
+    mock_s3_client.head_object.return_value = {"ContentLength": MOCK_CONTENT_LENGTH}
 
     assert s3.object_exists("docs/existing.txt") is True
     mock_s3_client.head_object.assert_called_once_with(

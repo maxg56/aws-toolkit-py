@@ -10,6 +10,9 @@ from aws_simple import textract
 from aws_simple.exceptions import TextractError
 from aws_simple.models.textract import TextractDocument
 
+# Test data constants
+EXPECTED_HIGH_CONFIDENCE = 99.5
+
 
 def test_extract_text_from_file_success(
     mock_textract_client: MagicMock, sample_textract_response: dict, tmp_path: Path
@@ -153,7 +156,7 @@ def test_textract_document_structure(
     # Test lines
     assert len(page.lines) == 2
     assert page.lines[0].text == "Invoice #12345"
-    assert page.lines[0].confidence == 99.5
+    assert page.lines[0].confidence == EXPECTED_HIGH_CONFIDENCE
     assert "top" in page.lines[0].bounding_box
 
     # Test tables
