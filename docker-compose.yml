@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  aws-simple:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aws-simple:latest
+    container_name: aws-simple-app
+    environment:
+      # AWS Configuration (override in .env file or environment)
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET}
+      - AWS_BEDROCK_MODEL_ID=${AWS_BEDROCK_MODEL_ID:-anthropic.claude-3-5-sonnet-20241022-v2:0}
+      # AWS Credentials (for local dev, use IAM role in production)
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+    volumes:
+      # Mount your application code
+      - ./examples:/app/examples:ro
+      # Mount AWS credentials (alternative to env vars)
+      - ~/.aws:/home/appuser/.aws:ro
+    working_dir: /app
+    command: python examples/usage_example.py

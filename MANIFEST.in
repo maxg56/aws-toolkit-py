@@ -1,0 +1,13 @@
+include README.md
+include LICENSE
+include pyproject.toml
+include .env.example
+
+recursive-include src/aws_simple *.py
+recursive-include tests *.py
+
+exclude examples/*
+exclude .github/*
+exclude htmlcov/*
+exclude .coverage
+exclude .pytest_cache
