@@ -13,7 +13,9 @@ def test_config_required_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("AWS_S3_BUCKET", raising=False)
 
     config = Config()
-    with pytest.raises(ConfigurationError, match="Missing required environment variable: AWS_S3_BUCKET"):
+    with pytest.raises(
+        ConfigurationError, match="Missing required environment variable: AWS_S3_BUCKET"
+    ):
         _ = config.s3_bucket
 
 

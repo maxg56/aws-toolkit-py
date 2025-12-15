@@ -112,7 +112,9 @@ def sample_textract_response() -> dict:
                 "Id": "table-1",
                 "Page": 1,
                 "Confidence": 97.5,
-                "Relationships": [{"Type": "CHILD", "Ids": ["cell-1", "cell-2", "cell-3", "cell-4"]}],
+                "Relationships": [
+                    {"Type": "CHILD", "Ids": ["cell-1", "cell-2", "cell-3", "cell-4"]}
+                ],
             },
             {
                 "BlockType": "CELL",

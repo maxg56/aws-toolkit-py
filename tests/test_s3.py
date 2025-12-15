@@ -94,9 +94,7 @@ def test_read_object_custom_bucket(mock_s3_client: MagicMock) -> None:
 
     s3.read_object("docs/test.txt", bucket="custom-bucket")
 
-    mock_s3_client.get_object.assert_called_once_with(
-        Bucket="custom-bucket", Key="docs/test.txt"
-    )
+    mock_s3_client.get_object.assert_called_once_with(Bucket="custom-bucket", Key="docs/test.txt")
 
 
 def test_read_object_client_error(mock_s3_client: MagicMock) -> None:
@@ -162,7 +160,9 @@ def test_object_exists_true(mock_s3_client: MagicMock) -> None:
     mock_s3_client.head_object.return_value = {"ContentLength": 1234}
 
     assert s3.object_exists("docs/existing.txt") is True
-    mock_s3_client.head_object.assert_called_once_with(Bucket="test-bucket", Key="docs/existing.txt")
+    mock_s3_client.head_object.assert_called_once_with(
+        Bucket="test-bucket", Key="docs/existing.txt"
+    )
 
 
 def test_object_exists_false(mock_s3_client: MagicMock) -> None:

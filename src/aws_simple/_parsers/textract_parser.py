@@ -173,9 +173,7 @@ class TextractParser:
         return tables
 
     @staticmethod
-    def _get_cell_text(
-        cell_block: dict[str, Any], block_map: dict[str, dict[str, Any]]
-    ) -> str:
+    def _get_cell_text(cell_block: dict[str, Any], block_map: dict[str, dict[str, Any]]) -> str:
         """Extract text from a CELL block by following relationships."""
         relationships = cell_block.get("Relationships", [])
         word_ids = []

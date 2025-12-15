@@ -45,9 +45,7 @@ class AWSClients:
                 session = boto3.Session(**kwargs)
                 cls._textract_client = session.client("textract")
             except (BotoCoreError, ClientError, NoCredentialsError) as e:
-                raise ClientInitializationError(
-                    f"Failed to initialize Textract client: {e}"
-                ) from e
+                raise ClientInitializationError(f"Failed to initialize Textract client: {e}") from e
         return cls._textract_client
 
     @classmethod
@@ -60,9 +58,7 @@ class AWSClients:
                 session = boto3.Session(**kwargs)
                 cls._bedrock_runtime_client = session.client("bedrock-runtime")
             except (BotoCoreError, ClientError, NoCredentialsError) as e:
-                raise ClientInitializationError(
-                    f"Failed to initialize Bedrock client: {e}"
-                ) from e
+                raise ClientInitializationError(f"Failed to initialize Bedrock client: {e}") from e
         return cls._bedrock_runtime_client
 
     @classmethod

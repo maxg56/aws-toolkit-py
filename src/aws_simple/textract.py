@@ -87,9 +87,7 @@ def extract_text_from_s3(
         return TextractParser.parse_response(response)
 
     except ClientError as e:
-        raise TextractError(
-            f"Failed to extract text from s3://{bucket}/{s3_key}: {e}"
-        ) from e
+        raise TextractError(f"Failed to extract text from s3://{bucket}/{s3_key}: {e}") from e
     except Exception as e:
         raise TextractError(
             f"Unexpected error extracting text from s3://{bucket}/{s3_key}: {e}"
@@ -126,11 +124,7 @@ def extract_text_simple_from_file(local_path: str | Path) -> str:
 
         # Extract just text from blocks
         blocks = response.get("Blocks", [])
-        lines = [
-            block["Text"]
-            for block in blocks
-            if block.get("BlockType") == "LINE"
-        ]
+        lines = [block["Text"] for block in blocks if block.get("BlockType") == "LINE"]
 
         return "\n".join(lines)
 
@@ -173,18 +167,12 @@ def extract_text_simple_from_s3(
 
         # Extract just text from blocks
         blocks = response.get("Blocks", [])
-        lines = [
-            block["Text"]
-            for block in blocks
-            if block.get("BlockType") == "LINE"
-        ]
+        lines = [block["Text"] for block in blocks if block.get("BlockType") == "LINE"]
 
         return "\n".join(lines)
 
     except ClientError as e:
-        raise TextractError(
-            f"Failed to extract text from s3://{bucket}/{s3_key}: {e}"
-        ) from e
+        raise TextractError(f"Failed to extract text from s3://{bucket}/{s3_key}: {e}") from e
     except Exception as e:
         raise TextractError(
             f"Unexpected error extracting text from s3://{bucket}/{s3_key}: {e}"

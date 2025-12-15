@@ -64,9 +64,7 @@ def download_file(
         client = AWSClients.get_s3_client()
         client.download_file(bucket, s3_key, str(local_path))
     except ClientError as e:
-        raise S3Error(
-            f"Failed to download s3://{bucket}/{s3_key} to {local_path}: {e}"
-        ) from e
+        raise S3Error(f"Failed to download s3://{bucket}/{s3_key} to {local_path}: {e}") from e
 
 
 def read_object(s3_key: str, bucket: str | None = None) -> bytes:

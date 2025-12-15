@@ -56,9 +56,10 @@ class Config:
     @property
     def bedrock_model_id(self) -> str:
         """Default Bedrock model ID."""
-        return self._get_optional(
-            "AWS_BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0"
-        ) or "anthropic.claude-3-5-sonnet-20241022-v2:0"
+        return (
+            self._get_optional("AWS_BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0")
+            or "anthropic.claude-3-5-sonnet-20241022-v2:0"
+        )
 
     @property
     def bedrock_region(self) -> str:
