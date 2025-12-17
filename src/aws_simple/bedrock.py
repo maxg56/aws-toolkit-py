@@ -1,7 +1,7 @@
 """Bedrock operations module."""
 
 import json
-from typing import Any
+from typing import Any, cast
 
 from botocore.exceptions import ClientError
 
@@ -122,7 +122,7 @@ def invoke_json(
             cleaned = cleaned[:-3]
         cleaned = cleaned.strip()
 
-        return json.loads(cleaned)
+        return cast(dict[str, Any], json.loads(cleaned))
     except json.JSONDecodeError as e:
         raise BedrockError(
             f"Model response is not valid JSON. Response: {text_response[:200]}..."

@@ -1,7 +1,7 @@
 """Tests for S3 module."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import MagicMock
 
 import pytest
 from botocore.exceptions import ClientError
