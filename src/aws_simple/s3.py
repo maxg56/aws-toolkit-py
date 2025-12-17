@@ -1,6 +1,7 @@
 """S3 operations module."""
 
 from pathlib import Path
+from typing import cast
 
 from botocore.exceptions import ClientError
 
@@ -86,7 +87,7 @@ def read_object(s3_key: str, bucket: str | None = None) -> bytes:
     try:
         client = AWSClients.get_s3_client()
         response = client.get_object(Bucket=bucket, Key=s3_key)
-        return response["Body"].read()
+        return cast(bytes, response["Body"].read())
     except ClientError as e:
         raise S3Error(f"Failed to read s3://{bucket}/{s3_key}: {e}") from e
 
