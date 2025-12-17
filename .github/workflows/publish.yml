@@ -8,10 +8,9 @@ on:
       environment:
         description: 'Publish to TestPyPI or PyPI'
         required: true
-        default: 'testpypi'
+        default: 'pypi'
         type: choice
         options:
-          - testpypi
           - pypi
 
 jobs:
@@ -43,14 +42,6 @@ jobs:
     - name: Check package
       run: |
         twine check dist/*
-
-    - name: Publish to Test PyPI
-      if: github.event.inputs.environment == 'testpypi'
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        repository-url: https://test.pypi.org/legacy/
-        password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-        skip-existing: true
 
     - name: Publish to PyPI
       if: github.event_name == 'release' || github.event.inputs.environment == 'pypi'
