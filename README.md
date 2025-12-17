@@ -278,4 +278,4 @@ MIT
 
 ## Support
 
-For issues and feature requests, please visit the [GitHub repository](https://github.com/yourusername/aws-toolkit-py).
+For issues and feature requests, please visit the [GitHub repository](https://github.com/maxg56/aws-toolkit-py).
