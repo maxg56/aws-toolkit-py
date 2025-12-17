@@ -4,13 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aws-simple"
-version = "0.1.0-beta"
+version = "0.1.1-beta"
 description = "A clean, simple wrapper around AWS services (S3, Textract, Bedrock)"
 readme = "README.md"
 requires-python = ">=3.10"
-authors = [
-    { name = "Your Name", email = "your.email@example.com" }
-]
 license = { text = "MIT" }
 keywords = ["aws", "boto3", "s3", "textract", "bedrock", "wrapper"]
 classifiers = [
@@ -20,6 +17,8 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 
 dependencies = [
@@ -37,9 +36,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/aws-toolkit-py"
-Repository = "https://github.com/yourusername/aws-toolkit-py"
-Issues = "https://github.com/yourusername/aws-toolkit-py/issues"
+Homepage = "https://github.com/maxg56/aws-toolkit-py"
+Repository = "https://github.com/maxg56/aws-toolkit-py"
+Issues = "https://github.com/maxg56/aws-toolkit-py/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/aws_simple"]
@@ -52,7 +51,7 @@ warn_unused_configs = true
 
 [tool.black]
 line-length = 100
-target-version = ["py310", "py311", "py312"]
+target-version = ["py310", "py311", "py312","py313","py314"]
 skip-string-normalization = false
 
 [tool.ruff]
