@@ -1,6 +1,5 @@
 """Tests for config module."""
 
-
 import pytest
 
 from aws_simple.config import Config
