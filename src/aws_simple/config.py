@@ -42,7 +42,20 @@ class Config:
 
     @property
     def ssl_verify(self) -> bool:
-        """SSL certificate verification (default: True)."""
+        """
+        SSL certificate verification flag (default: True).
+
+        WARNING: Disabling SSL certificate verification is insecure and can
+        expose you to man-in-the-middle (MITM) attacks. Only set this to
+        False in controlled development or testing environments, for example
+        when working with self-signed certificates.
+
+        This is controlled via the AWS_SSL_VERIFY environment variable; any of
+        "false", "0", "no", or "off" (case-insensitive) will disable
+        verification.
+        """
+        # NOTE: Only disable SSL verification for local development/testing
+        # with self-signed certificates. Do NOT disable it in production.
         value = self._get_optional("AWS_SSL_VERIFY", "true")
         return value.lower() not in ("false", "0", "no", "off")
 
