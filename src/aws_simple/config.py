@@ -40,6 +40,12 @@ class Config:
         """AWS profile name (optional, for local development)."""
         return self._get_optional("AWS_PROFILE")
 
+    @property
+    def ssl_verify(self) -> bool:
+        """SSL certificate verification (default: True)."""
+        value = self._get_optional("AWS_SSL_VERIFY", "true")
+        return value.lower() not in ("false", "0", "no", "off")
+
     # S3
     @property
     def s3_bucket(self) -> str:
