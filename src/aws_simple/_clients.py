@@ -30,7 +30,7 @@ class AWSClients:
         if cls._s3_client is None:
             try:
                 session = boto3.Session(**cls._get_session_kwargs())
-                cls._s3_client = session.client("s3")
+                cls._s3_client = session.client("s3", verify=config.ssl_verify)
             except (BotoCoreError, ClientError, NoCredentialsError) as e:
                 raise ClientInitializationError(f"Failed to initialize S3 client: {e}") from e
         return cls._s3_client
@@ -43,7 +43,7 @@ class AWSClients:
                 kwargs = cls._get_session_kwargs()
                 kwargs["region_name"] = config.textract_region
                 session = boto3.Session(**kwargs)
-                cls._textract_client = session.client("textract")
+                cls._textract_client = session.client("textract", verify=config.ssl_verify)
             except (BotoCoreError, ClientError, NoCredentialsError) as e:
                 raise ClientInitializationError(f"Failed to initialize Textract client: {e}") from e
         return cls._textract_client
@@ -56,7 +56,9 @@ class AWSClients:
                 kwargs = cls._get_session_kwargs()
                 kwargs["region_name"] = config.bedrock_region
                 session = boto3.Session(**kwargs)
-                cls._bedrock_runtime_client = session.client("bedrock-runtime")
+                cls._bedrock_runtime_client = session.client(
+                    "bedrock-runtime", verify=config.ssl_verify
+                )
             except (BotoCoreError, ClientError, NoCredentialsError) as e:
                 raise ClientInitializationError(f"Failed to initialize Bedrock client: {e}") from e
         return cls._bedrock_runtime_client
