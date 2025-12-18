@@ -36,6 +36,7 @@ export AWS_PROFILE=my-profile  # For local development
 export AWS_BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
 export AWS_TEXTRACT_REGION=us-east-1
 export AWS_BEDROCK_REGION=us-east-1
+export AWS_SSL_VERIFY=true  # SSL certificate verification (default: true, set to false to disable)
 ```
 
 Or use a `.env` file (see [.env.example](.env.example)).
