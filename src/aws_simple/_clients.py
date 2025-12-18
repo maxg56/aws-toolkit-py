@@ -56,7 +56,9 @@ class AWSClients:
                 kwargs = cls._get_session_kwargs()
                 kwargs["region_name"] = config.bedrock_region
                 session = boto3.Session(**kwargs)
-                cls._bedrock_runtime_client = session.client("bedrock-runtime", verify=config.ssl_verify)
+                cls._bedrock_runtime_client = session.client(
+                    "bedrock-runtime", verify=config.ssl_verify
+                )
             except (BotoCoreError, ClientError, NoCredentialsError) as e:
                 raise ClientInitializationError(f"Failed to initialize Bedrock client: {e}") from e
         return cls._bedrock_runtime_client
