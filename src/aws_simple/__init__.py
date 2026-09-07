@@ -21,6 +21,9 @@ Example usage:
     data = bedrock.invoke_json("Extract key points as JSON")
 """
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _version
+
 from . import bedrock, s3, textract
 from .exceptions import (
     AWSSimpleError,
@@ -32,7 +35,10 @@ from .exceptions import (
 )
 from .models import TextractDocument, TextractLine, TextractPage, TextractTable
 
-__version__ = "0.1.0"
+try:
+    __version__ = _version("aws-simple")
+except PackageNotFoundError:  # pragma: no cover - package not installed (e.g. source tree)
+    __version__ = "0.0.0.dev0"
 
 __all__ = [
     # Modules

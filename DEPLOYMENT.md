@@ -275,9 +275,10 @@ Follow Semantic Versioning (SemVer):
 - **MINOR** (0.1.0): New features, backward compatible
 - **PATCH** (0.0.1): Bug fixes, backward compatible
 
-Update version in:
-1. [pyproject.toml](pyproject.toml)
-2. [src/aws_simple/__init__.py](src/aws_simple/__init__.py)
+The version has a single source of truth: [pyproject.toml](pyproject.toml).
+
+`aws_simple.__version__` is derived at runtime from the installed package metadata
+(`importlib.metadata.version("aws-simple")`), so there is nothing else to update on a bump.
 
 ## Rollback Procedures
 
