@@ -17,19 +17,18 @@ class AWSClients:
     _bedrock_runtime_client: Any | None = None
 
     @classmethod
-    def _get_session_kwargs(cls) -> dict[str, str]:
-        """Get boto3 session configuration."""
-        kwargs: dict[str, str] = {"region_name": config.aws_region}
+    def _build_session(cls, region_name: str) -> boto3.Session:
+        """Create a boto3 session for the given region."""
         if config.aws_profile:
-            kwargs["profile_name"] = config.aws_profile
-        return kwargs
+            return boto3.Session(region_name=region_name, profile_name=config.aws_profile)
+        return boto3.Session(region_name=region_name)
 
     @classmethod
     def get_s3_client(cls) -> Any:
         """Get or create S3 client."""
         if cls._s3_client is None:
             try:
-                session = boto3.Session(**cls._get_session_kwargs())
+                session = cls._build_session(config.aws_region)
                 cls._s3_client = session.client("s3", verify=config.ssl_verify)
             except (BotoCoreError, ClientError, NoCredentialsError) as e:
                 raise ClientInitializationError(f"Failed to initialize S3 client: {e}") from e
@@ -40,9 +39,7 @@ class AWSClients:
         """Get or create Textract client."""
         if cls._textract_client is None:
             try:
-                kwargs = cls._get_session_kwargs()
-                kwargs["region_name"] = config.textract_region
-                session = boto3.Session(**kwargs)
+                session = cls._build_session(config.textract_region)
                 cls._textract_client = session.client("textract", verify=config.ssl_verify)
             except (BotoCoreError, ClientError, NoCredentialsError) as e:
                 raise ClientInitializationError(f"Failed to initialize Textract client: {e}") from e
@@ -53,9 +50,7 @@ class AWSClients:
         """Get or create Bedrock Runtime client."""
         if cls._bedrock_runtime_client is None:
             try:
-                kwargs = cls._get_session_kwargs()
-                kwargs["region_name"] = config.bedrock_region
-                session = boto3.Session(**kwargs)
+                session = cls._build_session(config.bedrock_region)
                 cls._bedrock_runtime_client = session.client(
                     "bedrock-runtime", verify=config.ssl_verify
                 )
