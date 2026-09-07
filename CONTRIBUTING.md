@@ -95,7 +95,7 @@ twine check dist/*
 
 The CI pipeline runs on every push and pull request:
 
-1. **Tests** - Run on Python 3.10, 3.11, 3.12
+1. **Tests** - Run on Python 3.10, 3.11, 3.12, 3.13, 3.14
 2. **Linting** - Ruff checks code quality
 3. **Type Checking** - mypy validates types
 4. **Build** - Builds wheel and sdist packages

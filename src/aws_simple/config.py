@@ -56,7 +56,7 @@ class Config:
         """
         # NOTE: Only disable SSL verification for local development/testing
         # with self-signed certificates. Do NOT disable it in production.
-        value = self._get_optional("AWS_SSL_VERIFY", "true")
+        value = self._get_optional("AWS_SSL_VERIFY", "true") or "true"
         return value.lower() not in ("false", "0", "no", "off")
 
     # S3
