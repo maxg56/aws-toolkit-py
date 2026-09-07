@@ -8,12 +8,12 @@ version = "0.1.1b2"
 description = "A clean, simple wrapper around AWS services (S3, Textract, Bedrock)"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = { text = "Apache-2.0" }
 keywords = ["aws", "boto3", "s3", "textract", "bedrock", "wrapper"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",

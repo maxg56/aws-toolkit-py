@@ -275,7 +275,7 @@ ruff check src/
 
 ## License
 
-MIT
+Apache-2.0 — see the [LICENSE](LICENSE) file for details.
 
 ## Support
 
