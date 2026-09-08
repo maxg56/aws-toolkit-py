@@ -240,3 +240,137 @@ def test_object_exists_other_error(mock_s3_client: MagicMock) -> None:
 
     with pytest.raises(S3Error, match="Failed to check"):
         s3.object_exists("docs/test.txt")
+
+
+def test_upload_file_accepts_path_object(mock_s3_client: MagicMock, tmp_path: Path) -> None:
+    """A pathlib.Path local path is converted to a string for boto3."""
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("test content")
+
+    s3.upload_file(test_file, "uploads/test.txt", bucket="custom-bucket")
+
+    mock_s3_client.upload_file.assert_called_once_with(
+        str(test_file), "custom-bucket", "uploads/test.txt"
+    )
+
+
+def test_upload_file_error_message_names_destination(
+    mock_s3_client: MagicMock, tmp_path: Path
+) -> None:
+    """The upload error message includes the full s3:// destination."""
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("test content")
+
+    error = ClientError({"Error": {"Code": "AccessDenied", "Message": "denied"}}, "upload_file")
+    mock_s3_client.upload_file.side_effect = error
+
+    with pytest.raises(S3Error) as exc_info:
+        s3.upload_file(test_file, "uploads/test.txt", bucket="my-bucket")
+
+    assert "s3://my-bucket/uploads/test.txt" in str(exc_info.value)
+    assert exc_info.value.__cause__ is error
+
+
+def test_upload_file_not_found_never_calls_s3(mock_s3_client: MagicMock) -> None:
+    """A missing local file is rejected before any S3 call is made."""
+    with pytest.raises(S3Error, match="Local file not found"):
+        s3.upload_file("/nonexistent/file.txt", "uploads/test.txt")
+
+    mock_s3_client.upload_file.assert_not_called()
+
+
+def test_download_file_custom_bucket(mock_s3_client: MagicMock, tmp_path: Path) -> None:
+    """A custom bucket overrides the configured default on download."""
+    target_file = tmp_path / "downloaded.txt"
+
+    s3.download_file("docs/test.txt", target_file, bucket="custom-bucket")
+
+    mock_s3_client.download_file.assert_called_once_with(
+        "custom-bucket", "docs/test.txt", str(target_file)
+    )
+
+
+def test_download_file_error_message_names_source(
+    mock_s3_client: MagicMock, tmp_path: Path
+) -> None:
+    """The download error message includes both source and destination."""
+    target_file = tmp_path / "file.txt"
+    error = ClientError({"Error": {"Code": "NoSuchKey", "Message": "gone"}}, "download_file")
+    mock_s3_client.download_file.side_effect = error
+
+    with pytest.raises(S3Error) as exc_info:
+        s3.download_file("docs/missing.txt", target_file, bucket="my-bucket")
+
+    assert "s3://my-bucket/docs/missing.txt" in str(exc_info.value)
+    assert str(target_file) in str(exc_info.value)
+    assert exc_info.value.__cause__ is error
+
+
+def test_read_object_returns_body_bytes(mock_s3_client: MagicMock) -> None:
+    """read_object returns exactly what Body.read() produced."""
+    mock_body = MagicMock()
+    mock_body.read.return_value = b"\x00binary\xff"
+    mock_s3_client.get_object.return_value = {"Body": mock_body}
+
+    assert s3.read_object("docs/blob.bin") == b"\x00binary\xff"
+    mock_body.read.assert_called_once_with()
+
+
+def test_read_object_error_message_names_object(mock_s3_client: MagicMock) -> None:
+    """The read error message includes the s3:// location and the cause."""
+    error = ClientError({"Error": {"Code": "NoSuchKey", "Message": "gone"}}, "get_object")
+    mock_s3_client.get_object.side_effect = error
+
+    with pytest.raises(S3Error) as exc_info:
+        s3.read_object("docs/x.txt", bucket="my-bucket")
+
+    assert "s3://my-bucket/docs/x.txt" in str(exc_info.value)
+    assert exc_info.value.__cause__ is error
+
+
+def test_list_objects_defaults_to_empty_prefix(mock_s3_client: MagicMock) -> None:
+    """Calling list_objects with no arguments lists the whole bucket."""
+    mock_s3_client.list_objects_v2.return_value = {"Contents": [{"Key": "a.txt"}]}
+
+    assert s3.list_objects() == ["a.txt"]
+    mock_s3_client.list_objects_v2.assert_called_once_with(
+        Bucket="test-bucket", Prefix="", MaxKeys=1000
+    )
+
+
+def test_list_objects_custom_bucket(mock_s3_client: MagicMock) -> None:
+    """A custom bucket overrides the configured default on listing."""
+    mock_s3_client.list_objects_v2.return_value = {"Contents": []}
+
+    assert s3.list_objects(prefix="docs/", bucket="custom-bucket") == []
+    assert mock_s3_client.list_objects_v2.call_args.kwargs["Bucket"] == "custom-bucket"
+
+
+def test_list_objects_error_message_names_prefix(mock_s3_client: MagicMock) -> None:
+    """The listing error message includes the bucket and prefix."""
+    error = ClientError({"Error": {"Code": "AccessDenied", "Message": "nope"}}, "list_objects_v2")
+    mock_s3_client.list_objects_v2.side_effect = error
+
+    with pytest.raises(S3Error) as exc_info:
+        s3.list_objects(prefix="docs/", bucket="my-bucket")
+
+    assert "s3://my-bucket/docs/" in str(exc_info.value)
+    assert exc_info.value.__cause__ is error
+
+
+def test_object_exists_custom_bucket(mock_s3_client: MagicMock) -> None:
+    """A custom bucket overrides the configured default on the existence check."""
+    mock_s3_client.head_object.return_value = {"ContentLength": MOCK_CONTENT_LENGTH}
+
+    assert s3.object_exists("docs/x.txt", bucket="custom-bucket") is True
+    mock_s3_client.head_object.assert_called_once_with(Bucket="custom-bucket", Key="docs/x.txt")
+
+
+def test_object_exists_non_404_not_found_code_raises(mock_s3_client: MagicMock) -> None:
+    """Only the literal "404" code maps to False; NoSuchKey still raises."""
+    mock_s3_client.head_object.side_effect = ClientError(
+        {"Error": {"Code": "NoSuchKey", "Message": "Not Found"}}, "head_object"
+    )
+
+    with pytest.raises(S3Error, match="Failed to check"):
+        s3.object_exists("docs/missing.txt")
