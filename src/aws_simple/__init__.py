@@ -37,8 +37,8 @@ from .models import TextractDocument, TextractLine, TextractPage, TextractTable
 
 try:
     __version__ = _version("aws-simple")
-except PackageNotFoundError:  # pragma: no cover - package not installed (e.g. source tree)
-    __version__ = "0.0.0.dev0"
+except PackageNotFoundError:
+    __version__ = "0.0.0.dev0"  # pragma: no cover - package not installed (e.g. source tree)
 
 __all__ = [
     # Modules
