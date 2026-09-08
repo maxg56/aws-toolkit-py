@@ -5,6 +5,8 @@ import pytest
 from aws_simple.config import Config
 from aws_simple.exceptions import ConfigurationError
 
+pytestmark = pytest.mark.unit
+
 
 def test_config_required_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that required environment variables are enforced."""

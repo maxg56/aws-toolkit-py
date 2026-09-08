@@ -10,6 +10,8 @@ from botocore.exceptions import ClientError
 from aws_simple import bedrock
 from aws_simple.exceptions import BedrockError
 
+pytestmark = pytest.mark.unit
+
 
 def test_invoke_success(mock_bedrock_client: MagicMock) -> None:
     """Test successful Bedrock invocation."""

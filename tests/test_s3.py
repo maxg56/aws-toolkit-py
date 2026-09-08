@@ -9,6 +9,8 @@ from botocore.exceptions import ClientError
 from aws_simple import s3
 from aws_simple.exceptions import S3Error
 
+pytestmark = pytest.mark.unit
+
 # Test data constants
 MOCK_CONTENT_LENGTH = 1234
 

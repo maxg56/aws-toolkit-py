@@ -10,6 +10,8 @@ from aws_simple import textract
 from aws_simple.exceptions import TextractError
 from aws_simple.models.textract import TextractDocument
 
+pytestmark = pytest.mark.unit
+
 # Test data constants
 EXPECTED_HIGH_CONFIDENCE = 99.5
 
