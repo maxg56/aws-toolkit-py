@@ -111,21 +111,20 @@ def test_read_object_client_error(mock_s3_client: MagicMock) -> None:
 
 
 def test_list_objects_success(mock_s3_client: MagicMock) -> None:
-    """Test successful object listing."""
+    """Test successful object listing (single page, not truncated)."""
     mock_s3_client.list_objects_v2.return_value = {
         "Contents": [
             {"Key": "docs/file1.txt"},
             {"Key": "docs/file2.txt"},
             {"Key": "docs/file3.txt"},
-        ]
+        ],
+        "IsTruncated": False,
     }
 
     objects = s3.list_objects(prefix="docs/")
 
     assert objects == ["docs/file1.txt", "docs/file2.txt", "docs/file3.txt"]
-    mock_s3_client.list_objects_v2.assert_called_once_with(
-        Bucket="test-bucket", Prefix="docs/", MaxKeys=1000
-    )
+    mock_s3_client.list_objects_v2.assert_called_once_with(Bucket="test-bucket", Prefix="docs/")
 
 
 def test_list_objects_empty(mock_s3_client: MagicMock) -> None:
@@ -135,16 +134,70 @@ def test_list_objects_empty(mock_s3_client: MagicMock) -> None:
     objects = s3.list_objects(prefix="empty/")
 
     assert objects == []
+    mock_s3_client.list_objects_v2.assert_called_once_with(Bucket="test-bucket", Prefix="empty/")
 
 
-def test_list_objects_with_max_keys(mock_s3_client: MagicMock) -> None:
-    """Test listing with custom max_keys."""
+def test_list_objects_paginates_all_pages(mock_s3_client: MagicMock) -> None:
+    """Test that listing follows IsTruncated/NextContinuationToken across pages."""
+    mock_s3_client.list_objects_v2.side_effect = [
+        {
+            "Contents": [{"Key": "docs/file1.txt"}, {"Key": "docs/file2.txt"}],
+            "IsTruncated": True,
+            "NextContinuationToken": "token-1",
+        },
+        {
+            "Contents": [{"Key": "docs/file3.txt"}],
+            "IsTruncated": True,
+            "NextContinuationToken": "token-2",
+        },
+        {
+            "Contents": [{"Key": "docs/file4.txt"}],
+            "IsTruncated": False,
+        },
+    ]
+
+    objects = s3.list_objects(prefix="docs/")
+
+    assert objects == [
+        "docs/file1.txt",
+        "docs/file2.txt",
+        "docs/file3.txt",
+        "docs/file4.txt",
+    ]
+    assert mock_s3_client.list_objects_v2.call_count == 3
+    mock_s3_client.list_objects_v2.assert_any_call(Bucket="test-bucket", Prefix="docs/")
+    mock_s3_client.list_objects_v2.assert_any_call(
+        Bucket="test-bucket", Prefix="docs/", ContinuationToken="token-1"
+    )
+    mock_s3_client.list_objects_v2.assert_any_call(
+        Bucket="test-bucket", Prefix="docs/", ContinuationToken="token-2"
+    )
+
+
+def test_list_objects_with_max_keys_single_page(mock_s3_client: MagicMock) -> None:
+    """Test listing with a max_keys cap smaller than the page size."""
     mock_s3_client.list_objects_v2.return_value = {"Contents": [{"Key": "file.txt"}]}
 
     s3.list_objects(prefix="docs/", max_keys=100)
 
     mock_s3_client.list_objects_v2.assert_called_once_with(
         Bucket="test-bucket", Prefix="docs/", MaxKeys=100
+    )
+
+
+def test_list_objects_with_max_keys_stops_early_across_pages(mock_s3_client: MagicMock) -> None:
+    """Test that max_keys caps the total across multiple pages and trims the result."""
+    mock_s3_client.list_objects_v2.return_value = {
+        "Contents": [{"Key": "file1.txt"}, {"Key": "file2.txt"}, {"Key": "file3.txt"}],
+        "IsTruncated": True,
+        "NextContinuationToken": "token-1",
+    }
+
+    objects = s3.list_objects(prefix="docs/", max_keys=2)
+
+    assert objects == ["file1.txt", "file2.txt"]
+    mock_s3_client.list_objects_v2.assert_called_once_with(
+        Bucket="test-bucket", Prefix="docs/", MaxKeys=2
     )
 
 
