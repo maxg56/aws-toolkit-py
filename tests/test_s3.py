@@ -333,9 +333,7 @@ def test_list_objects_defaults_to_empty_prefix(mock_s3_client: MagicMock) -> Non
     mock_s3_client.list_objects_v2.return_value = {"Contents": [{"Key": "a.txt"}]}
 
     assert s3.list_objects() == ["a.txt"]
-    mock_s3_client.list_objects_v2.assert_called_once_with(
-        Bucket="test-bucket", Prefix="", MaxKeys=1000
-    )
+    mock_s3_client.list_objects_v2.assert_called_once_with(Bucket="test-bucket", Prefix="")
 
 
 def test_list_objects_custom_bucket(mock_s3_client: MagicMock) -> None:

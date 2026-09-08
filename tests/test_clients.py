@@ -16,27 +16,26 @@ EXPECTED_TWO = 2
 # ---------------------------------------------------------------------------
 
 
-def test_get_session_kwargs_without_profile(
+def test_build_session_without_profile(
     reset_clients: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Without AWS_PROFILE only the region is passed to boto3.Session."""
     monkeypatch.delenv("AWS_PROFILE", raising=False)
-    monkeypatch.setenv("AWS_REGION", "eu-west-3")
 
-    assert AWSClients._get_session_kwargs() == {"region_name": "eu-west-3"}
+    with patch("aws_simple._clients.boto3.Session") as mock_session:
+        AWSClients._build_session("eu-west-3")
+
+    mock_session.assert_called_once_with(region_name="eu-west-3")
 
 
-def test_get_session_kwargs_with_profile(
-    reset_clients: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_build_session_with_profile(reset_clients: None, monkeypatch: pytest.MonkeyPatch) -> None:
     """AWS_PROFILE is forwarded as profile_name when set."""
     monkeypatch.setenv("AWS_PROFILE", "dev-profile")
-    monkeypatch.setenv("AWS_REGION", "eu-west-3")
 
-    assert AWSClients._get_session_kwargs() == {
-        "region_name": "eu-west-3",
-        "profile_name": "dev-profile",
-    }
+    with patch("aws_simple._clients.boto3.Session") as mock_session:
+        AWSClients._build_session("eu-west-3")
+
+    mock_session.assert_called_once_with(region_name="eu-west-3", profile_name="dev-profile")
 
 
 def test_s3_client_uses_profile_from_env(
