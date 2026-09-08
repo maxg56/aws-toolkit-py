@@ -20,9 +20,15 @@ def invoke(
     """
     Invoke Bedrock LLM and return text response.
 
+    Only Anthropic Claude models are currently supported (any model_id
+    containing "anthropic.claude"). Other model families (Titan, Llama,
+    Mistral, etc.) are not implemented and will raise BedrockError.
+
     Args:
         prompt: User prompt/question
-        model_id: Model ID (uses AWS_BEDROCK_MODEL_ID env var if not specified)
+        model_id: Model ID (uses AWS_BEDROCK_MODEL_ID env var if not specified).
+            Must be an Anthropic Claude model, e.g.
+            "anthropic.claude-3-5-sonnet-20241022-v2:0".
         max_tokens: Maximum tokens to generate
         temperature: Sampling temperature (0.0 to 1.0)
         system_prompt: Optional system prompt
@@ -31,7 +37,8 @@ def invoke(
         Generated text response
 
     Raises:
-        BedrockError: If invocation fails
+        BedrockError: If invocation fails, or if model_id is not an
+            Anthropic Claude model
     """
     model_id = model_id or config.bedrock_model_id
 
