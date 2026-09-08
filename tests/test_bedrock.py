@@ -10,6 +10,11 @@ from botocore.exceptions import ClientError
 from aws_simple import bedrock
 from aws_simple.exceptions import BedrockError
 
+pytestmark = pytest.mark.unit
+
+# Test data constants
+MAX_TOKENS_SMALL = 256
+
 
 def test_invoke_success(mock_bedrock_client: MagicMock) -> None:
     """Test successful Bedrock invocation."""
@@ -232,3 +237,173 @@ def test_build_anthropic_request_structure(mock_bedrock_client: MagicMock) -> No
     assert len(body["messages"]) == 1
     assert body["messages"][0]["role"] == "user"
     assert body["messages"][0]["content"] == "Test"
+
+
+def _body(text: str) -> dict:
+    """Build a Bedrock response payload containing a single text block."""
+    return {"content": [{"type": "text", "text": text}]}
+
+
+def test_invoke_without_system_prompt_omits_system_key(mock_bedrock_client: MagicMock) -> None:
+    """No system key is sent when no system prompt is provided."""
+    mock_bedrock_client.invoke_model.return_value = {
+        "body": BytesIO(json.dumps(_body("ok")).encode())
+    }
+
+    bedrock.invoke("Test")
+
+    body = json.loads(mock_bedrock_client.invoke_model.call_args.kwargs["body"])
+    assert "system" not in body
+
+
+def test_invoke_ignores_non_text_content_blocks(mock_bedrock_client: MagicMock) -> None:
+    """Only blocks of type "text" contribute to the returned string."""
+    response_body = {
+        "content": [
+            {"type": "thinking", "thinking": "hidden reasoning"},
+            {"type": "text", "text": "visible"},
+            {"type": "tool_use", "name": "calculator"},
+        ]
+    }
+
+    mock_bedrock_client.invoke_model.return_value = {
+        "body": BytesIO(json.dumps(response_body).encode())
+    }
+
+    assert bedrock.invoke("Test") == "visible"
+
+
+def test_invoke_text_block_without_text_key(mock_bedrock_client: MagicMock) -> None:
+    """A text block missing its text field contributes an empty string."""
+    response_body = {"content": [{"type": "text"}, {"type": "text", "text": "tail"}]}
+
+    mock_bedrock_client.invoke_model.return_value = {
+        "body": BytesIO(json.dumps(response_body).encode())
+    }
+
+    assert bedrock.invoke("Test") == "tail"
+
+
+def test_invoke_missing_content_key(mock_bedrock_client: MagicMock) -> None:
+    """A payload without a content key is treated as an empty response."""
+    mock_bedrock_client.invoke_model.return_value = {"body": BytesIO(json.dumps({}).encode())}
+
+    with pytest.raises(BedrockError, match="Empty response from model"):
+        bedrock.invoke("Test")
+
+
+def test_invoke_unsupported_model_never_calls_bedrock(mock_bedrock_client: MagicMock) -> None:
+    """An unsupported model family short-circuits before invoke_model."""
+    with pytest.raises(BedrockError) as exc_info:
+        bedrock.invoke("Test", model_id="amazon.titan-text-v1")
+
+    assert "amazon.titan-text-v1" in str(exc_info.value)
+    mock_bedrock_client.invoke_model.assert_not_called()
+
+
+def test_invoke_invalid_json_payload(mock_bedrock_client: MagicMock) -> None:
+    """A non-JSON response body is reported as an unexpected Bedrock error."""
+    mock_bedrock_client.invoke_model.return_value = {"body": BytesIO(b"not-json")}
+
+    with pytest.raises(BedrockError, match="Unexpected error invoking Bedrock") as exc_info:
+        bedrock.invoke("Test")
+
+    assert isinstance(exc_info.value.__cause__, json.JSONDecodeError)
+
+
+def test_invoke_client_error_keeps_cause(mock_bedrock_client: MagicMock) -> None:
+    """The originating ClientError is chained onto the BedrockError."""
+    error = ClientError(
+        {"Error": {"Code": "AccessDeniedException", "Message": "no access"}}, "invoke_model"
+    )
+    mock_bedrock_client.invoke_model.side_effect = error
+
+    with pytest.raises(BedrockError) as exc_info:
+        bedrock.invoke("Test", model_id="anthropic.claude-v2")
+
+    assert exc_info.value.__cause__ is error
+    assert "anthropic.claude-v2" in str(exc_info.value)
+
+
+def test_invoke_json_strips_plain_code_fence(mock_bedrock_client: MagicMock) -> None:
+    """A response fenced with plain backticks is still parsed as JSON."""
+    mock_bedrock_client.invoke_model.return_value = {
+        "body": BytesIO(json.dumps(_body('```\n{"key": "value"}\n```')).encode())
+    }
+
+    assert bedrock.invoke_json("Return JSON") == {"key": "value"}
+
+
+def test_invoke_json_strips_trailing_fence_only(mock_bedrock_client: MagicMock) -> None:
+    """A response with only a trailing fence is still parsed."""
+    mock_bedrock_client.invoke_model.return_value = {
+        "body": BytesIO(json.dumps(_body('{"key": "value"}\n```')).encode())
+    }
+
+    assert bedrock.invoke_json("Return JSON") == {"key": "value"}
+
+
+def test_invoke_json_strips_surrounding_whitespace(mock_bedrock_client: MagicMock) -> None:
+    """Leading and trailing whitespace around the payload is removed."""
+    mock_bedrock_client.invoke_model.return_value = {
+        "body": BytesIO(json.dumps(_body('  \n {"a": 1} \n  ')).encode())
+    }
+
+    assert bedrock.invoke_json("Return JSON") == {"a": 1}
+
+
+def test_invoke_json_forwards_parameters(mock_bedrock_client: MagicMock) -> None:
+    """model_id, max_tokens, temperature and system_prompt reach invoke_model."""
+    mock_bedrock_client.invoke_model.return_value = {
+        "body": BytesIO(json.dumps(_body('{"ok": true}')).encode())
+    }
+
+    bedrock.invoke_json(
+        "Give me JSON",
+        model_id="anthropic.claude-v2",
+        max_tokens=256,
+        temperature=0.0,
+        system_prompt="Be terse.",
+    )
+
+    call_args = mock_bedrock_client.invoke_model.call_args
+    body = json.loads(call_args.kwargs["body"])
+
+    assert call_args.kwargs["modelId"] == "anthropic.claude-v2"
+    assert body["max_tokens"] == MAX_TOKENS_SMALL
+    assert body["temperature"] == 0.0
+    assert body["system"] == "Be terse."
+
+
+def test_invoke_json_propagates_invoke_errors(mock_bedrock_client: MagicMock) -> None:
+    """Errors raised by invoke() are not swallowed by invoke_json()."""
+    mock_bedrock_client.invoke_model.side_effect = ClientError(
+        {"Error": {"Code": "ThrottlingException", "Message": "slow down"}}, "invoke_model"
+    )
+
+    with pytest.raises(BedrockError, match="Failed to invoke Bedrock model"):
+        bedrock.invoke_json("Return JSON")
+
+
+def test_invoke_json_error_truncates_response(mock_bedrock_client: MagicMock) -> None:
+    """The JSON error message includes only the first 200 characters."""
+    long_text = "x" * 500
+    mock_bedrock_client.invoke_model.return_value = {
+        "body": BytesIO(json.dumps(_body(long_text)).encode())
+    }
+
+    with pytest.raises(BedrockError) as exc_info:
+        bedrock.invoke_json("Return JSON")
+
+    message = str(exc_info.value)
+    assert message == f"Model response is not valid JSON. Response: {'x' * 200}..."
+    assert isinstance(exc_info.value.__cause__, json.JSONDecodeError)
+
+
+def test_invoke_json_returns_parsed_json_array(mock_bedrock_client: MagicMock) -> None:
+    """A top-level JSON array is returned as parsed by json.loads."""
+    mock_bedrock_client.invoke_model.return_value = {
+        "body": BytesIO(json.dumps(_body("[1, 2, 3]")).encode())
+    }
+
+    assert bedrock.invoke_json("Return JSON") == [1, 2, 3]

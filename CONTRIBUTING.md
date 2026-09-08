@@ -13,7 +13,7 @@ Thank you for your interest in contributing to aws-simple!
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/aws-toolkit-py.git
+git clone https://github.com/maxg56/aws-toolkit-py.git
 cd aws-toolkit-py
 ```
 
@@ -143,9 +143,8 @@ docker-compose up
 ### Branch Strategy
 
 - `main` - Production-ready code
-- `develop` - Development branch
-- Feature branches: `feature/your-feature-name`
-- Bug fixes: `fix/bug-description`
+- Feature branches: `feature/your-feature-name`, based on `main`
+- Bug fixes: `fix/bug-description`, based on `main`
 
 ### Commit Messages
 
@@ -171,7 +170,7 @@ docs: update installation instructions
 3. Add/update tests
 4. Ensure all tests pass
 5. Update documentation if needed
-6. Submit pull request to `develop` branch
+6. Submit pull request to `main` branch
 
 ## Code Guidelines
 
@@ -211,8 +210,7 @@ aws-toolkit-py/
 │   └── _parsers/         # Internal parsers
 ├── tests/                # Test suite
 ├── examples/             # Usage examples
-├── .github/workflows/    # CI/CD workflows
-└── docs/                 # Documentation
+└── .github/workflows/    # CI/CD workflows
 ```
 
 ## Questions?
