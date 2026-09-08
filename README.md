@@ -73,6 +73,20 @@ exists = s3.object_exists("docs/document.pdf")
 
 ### Textract - Document Extraction
 
+> **⚠️ Limitation actuelle : 1 page par appel**
+>
+> `extract_text_from_file`, `extract_text_from_s3`, `extract_text_simple_from_file` et
+> `extract_text_simple_from_s3` utilisent les API Textract **synchrones**
+> (`analyze_document` / `detect_document_text` avec `Document={"Bytes": ...}` ou
+> `Document={"S3Object": ...}`). Ces API ne traitent correctement qu'une **image**
+> ou un **PDF d'une seule page** : pour un PDF multi-pages, seule la première page
+> est fiable (le comportement sur les pages suivantes n'est pas garanti par AWS).
+>
+> Le support des PDF multi-pages nécessite de basculer vers les API Textract
+> **asynchrones** (`StartDocumentAnalysis`/`StartDocumentTextDetection` via S3) ou de
+> découper le document côté client avant l'extraction — voir
+> [#11](https://github.com/maxg56/aws-toolkit-py/issues/11).
+
 ```python
 from aws_simple import textract
 import json
