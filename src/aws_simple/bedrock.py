@@ -1,6 +1,7 @@
 """Bedrock operations module."""
 
 import json
+from collections.abc import Callable
 from typing import Any, cast
 
 from botocore.exceptions import ClientError
@@ -8,6 +9,9 @@ from botocore.exceptions import ClientError
 from ._clients import AWSClients
 from .config import config
 from .exceptions import BedrockError
+
+BuildRequestFn = Callable[..., dict[str, Any]]
+ExtractTextFn = Callable[[dict[str, Any]], str]
 
 
 def invoke(
@@ -20,15 +24,15 @@ def invoke(
     """
     Invoke Bedrock LLM and return text response.
 
-    Only Anthropic Claude models are currently supported (any model_id
-    containing "anthropic.claude"). Other model families (Titan, Llama,
-    Mistral, etc.) are not implemented and will raise BedrockError.
+    Supports Anthropic Claude, Amazon Titan, Meta Llama and Mistral model
+    families, selected from the model_id. Other families raise BedrockError.
 
     Args:
         prompt: User prompt/question
-        model_id: Model ID (uses AWS_BEDROCK_MODEL_ID env var if not specified).
-            Must be an Anthropic Claude model, e.g.
-            "anthropic.claude-3-5-sonnet-20241022-v2:0".
+        model_id: Model ID (uses AWS_BEDROCK_MODEL_ID env var if not specified),
+            e.g. "anthropic.claude-3-5-sonnet-20241022-v2:0",
+            "amazon.titan-text-express-v1", "meta.llama3-8b-instruct-v1:0" or
+            "mistral.mistral-7b-instruct-v0:2".
         max_tokens: Maximum tokens to generate
         temperature: Sampling temperature (0.0 to 1.0)
         system_prompt: Optional system prompt
@@ -37,26 +41,20 @@ def invoke(
         Generated text response
 
     Raises:
-        BedrockError: If invocation fails, or if model_id is not an
-            Anthropic Claude model
+        BedrockError: If invocation fails, or if model_id's family is not supported
     """
     model_id = model_id or config.bedrock_model_id
+    build_request, extract_text = _resolve_family(model_id)
 
     try:
         client = AWSClients.get_bedrock_runtime_client()
 
-        # Build request based on model family
-        if "anthropic.claude" in model_id:
-            body = _build_anthropic_request(
-                prompt=prompt,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                system_prompt=system_prompt,
-            )
-        else:
-            raise BedrockError(
-                f"Unsupported model family: {model_id}. Currently only Claude models are supported."
-            )
+        body = build_request(
+            prompt=prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            system_prompt=system_prompt,
+        )
 
         response = client.invoke_model(
             modelId=model_id,
@@ -67,14 +65,12 @@ def invoke(
 
         response_body = json.loads(response["body"].read())
 
-        # Extract text based on model family
-        if "anthropic.claude" in model_id:
-            return _extract_anthropic_text(response_body)
-        else:
-            raise BedrockError(f"Cannot extract response from model: {model_id}")
+        return extract_text(response_body)
 
     except ClientError as e:
         raise BedrockError(f"Failed to invoke Bedrock model {model_id}: {e}") from e
+    except BedrockError:
+        raise
     except Exception as e:
         raise BedrockError(f"Unexpected error invoking Bedrock: {e}") from e
 
@@ -174,3 +170,98 @@ def _extract_anthropic_text(response_body: dict[str, Any]) -> str:
             text_parts.append(block.get("text", ""))
 
     return "".join(text_parts)
+
+
+def _with_system_prompt(prompt: str, system_prompt: str | None) -> str:
+    """Prepend a system prompt for model families with no dedicated field for it."""
+    return f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
+
+
+def _build_titan_request(
+    prompt: str,
+    max_tokens: int,
+    temperature: float,
+    system_prompt: str | None = None,
+) -> dict[str, Any]:
+    """Build request body for Amazon Titan text models."""
+    return {
+        "inputText": _with_system_prompt(prompt, system_prompt),
+        "textGenerationConfig": {
+            "maxTokenCount": max_tokens,
+            "temperature": temperature,
+        },
+    }
+
+
+def _extract_titan_text(response_body: dict[str, Any]) -> str:
+    """Extract text from Amazon Titan response."""
+    results = response_body.get("results", [])
+    if not results:
+        raise BedrockError("Empty response from model")
+
+    return "".join(result.get("outputText", "") for result in results)
+
+
+def _build_llama_request(
+    prompt: str,
+    max_tokens: int,
+    temperature: float,
+    system_prompt: str | None = None,
+) -> dict[str, Any]:
+    """Build request body for Meta Llama models."""
+    return {
+        "prompt": _with_system_prompt(prompt, system_prompt),
+        "max_gen_len": max_tokens,
+        "temperature": temperature,
+    }
+
+
+def _extract_llama_text(response_body: dict[str, Any]) -> str:
+    """Extract text from Meta Llama response."""
+    text = response_body.get("generation")
+    if not text:
+        raise BedrockError("Empty response from model")
+
+    return cast(str, text)
+
+
+def _build_mistral_request(
+    prompt: str,
+    max_tokens: int,
+    temperature: float,
+    system_prompt: str | None = None,
+) -> dict[str, Any]:
+    """Build request body for Mistral models."""
+    return {
+        "prompt": f"<s>[INST] {_with_system_prompt(prompt, system_prompt)} [/INST]",
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+    }
+
+
+def _extract_mistral_text(response_body: dict[str, Any]) -> str:
+    """Extract text from Mistral response."""
+    outputs = response_body.get("outputs", [])
+    if not outputs:
+        raise BedrockError("Empty response from model")
+
+    return "".join(output.get("text", "") for output in outputs)
+
+
+# Model family handlers, keyed by the substring identifying the family in a model_id.
+_MODEL_FAMILIES: dict[str, tuple[BuildRequestFn, ExtractTextFn]] = {
+    "anthropic.claude": (_build_anthropic_request, _extract_anthropic_text),
+    "amazon.titan": (_build_titan_request, _extract_titan_text),
+    "meta.llama": (_build_llama_request, _extract_llama_text),
+    "mistral.": (_build_mistral_request, _extract_mistral_text),
+}
+
+
+def _resolve_family(model_id: str) -> tuple[BuildRequestFn, ExtractTextFn]:
+    """Look up the request builder and text extractor for a model_id's family."""
+    for family, handlers in _MODEL_FAMILIES.items():
+        if family in model_id:
+            return handlers
+
+    supported = ", ".join(_MODEL_FAMILIES)
+    raise BedrockError(f"Unsupported model family: {model_id}. Supported families: {supported}.")

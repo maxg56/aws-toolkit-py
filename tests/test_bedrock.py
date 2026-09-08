@@ -123,7 +123,7 @@ def test_invoke_client_error(mock_bedrock_client: MagicMock) -> None:
 def test_invoke_unsupported_model(mock_bedrock_client: MagicMock) -> None:
     """Test invocation with unsupported model family."""
     with pytest.raises(BedrockError, match="Unsupported model family"):
-        bedrock.invoke("Test", model_id="amazon.titan-text-v1")
+        bedrock.invoke("Test", model_id="cohere.command-text-v14")
 
 
 def test_invoke_json_success(mock_bedrock_client: MagicMock) -> None:
@@ -239,6 +239,94 @@ def test_build_anthropic_request_structure(mock_bedrock_client: MagicMock) -> No
     assert body["messages"][0]["content"] == "Test"
 
 
+def test_invoke_titan_model(mock_bedrock_client: MagicMock) -> None:
+    """Test invocation with an Amazon Titan model."""
+    response_body = {"results": [{"outputText": "Titan response"}]}
+
+    mock_bedrock_client.invoke_model.return_value = {
+        "body": BytesIO(json.dumps(response_body).encode())
+    }
+
+    result = bedrock.invoke(
+        "Explain AWS Lambda",
+        model_id="amazon.titan-text-express-v1",
+        system_prompt="Be concise.",
+    )
+
+    assert result == "Titan response"
+
+    call_args = mock_bedrock_client.invoke_model.call_args
+    assert call_args.kwargs["modelId"] == "amazon.titan-text-express-v1"
+
+    body = json.loads(call_args.kwargs["body"])
+    assert body["inputText"] == "Be concise.\n\nExplain AWS Lambda"
+    assert body["textGenerationConfig"]["maxTokenCount"] == 4096
+
+
+def test_invoke_titan_empty_response(mock_bedrock_client: MagicMock) -> None:
+    """Test Titan invocation with an empty results list."""
+    mock_bedrock_client.invoke_model.return_value = {
+        "body": BytesIO(json.dumps({"results": []}).encode())
+    }
+
+    with pytest.raises(BedrockError, match="Empty response from model"):
+        bedrock.invoke("Test", model_id="amazon.titan-text-express-v1")
+
+
+def test_invoke_llama_model(mock_bedrock_client: MagicMock) -> None:
+    """Test invocation with a Meta Llama model."""
+    response_body = {"generation": "Llama response"}
+
+    mock_bedrock_client.invoke_model.return_value = {
+        "body": BytesIO(json.dumps(response_body).encode())
+    }
+
+    result = bedrock.invoke("Explain AWS Lambda", model_id="meta.llama3-8b-instruct-v1:0")
+
+    assert result == "Llama response"
+
+    call_args = mock_bedrock_client.invoke_model.call_args
+    body = json.loads(call_args.kwargs["body"])
+    assert body["prompt"] == "Explain AWS Lambda"
+    assert body["max_gen_len"] == 4096
+
+
+def test_invoke_llama_empty_response(mock_bedrock_client: MagicMock) -> None:
+    """Test Llama invocation with a missing generation field."""
+    mock_bedrock_client.invoke_model.return_value = {"body": BytesIO(json.dumps({}).encode())}
+
+    with pytest.raises(BedrockError, match="Empty response from model"):
+        bedrock.invoke("Test", model_id="meta.llama3-8b-instruct-v1:0")
+
+
+def test_invoke_mistral_model(mock_bedrock_client: MagicMock) -> None:
+    """Test invocation with a Mistral model."""
+    response_body = {"outputs": [{"text": "Mistral response", "stop_reason": "stop"}]}
+
+    mock_bedrock_client.invoke_model.return_value = {
+        "body": BytesIO(json.dumps(response_body).encode())
+    }
+
+    result = bedrock.invoke("Explain AWS Lambda", model_id="mistral.mistral-7b-instruct-v0:2")
+
+    assert result == "Mistral response"
+
+    call_args = mock_bedrock_client.invoke_model.call_args
+    body = json.loads(call_args.kwargs["body"])
+    assert body["prompt"] == "<s>[INST] Explain AWS Lambda [/INST]"
+    assert body["max_tokens"] == 4096
+
+
+def test_invoke_mistral_empty_response(mock_bedrock_client: MagicMock) -> None:
+    """Test Mistral invocation with an empty outputs list."""
+    mock_bedrock_client.invoke_model.return_value = {
+        "body": BytesIO(json.dumps({"outputs": []}).encode())
+    }
+
+    with pytest.raises(BedrockError, match="Empty response from model"):
+        bedrock.invoke("Test", model_id="mistral.mistral-7b-instruct-v0:2")
+
+
 def _body(text: str) -> dict:
     """Build a Bedrock response payload containing a single text block."""
     return {"content": [{"type": "text", "text": text}]}
@@ -295,9 +383,9 @@ def test_invoke_missing_content_key(mock_bedrock_client: MagicMock) -> None:
 def test_invoke_unsupported_model_never_calls_bedrock(mock_bedrock_client: MagicMock) -> None:
     """An unsupported model family short-circuits before invoke_model."""
     with pytest.raises(BedrockError) as exc_info:
-        bedrock.invoke("Test", model_id="amazon.titan-text-v1")
+        bedrock.invoke("Test", model_id="cohere.command-text-v14")
 
-    assert "amazon.titan-text-v1" in str(exc_info.value)
+    assert "cohere.command-text-v14" in str(exc_info.value)
     mock_bedrock_client.invoke_model.assert_not_called()
 
 

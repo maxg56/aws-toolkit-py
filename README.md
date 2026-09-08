@@ -167,10 +167,12 @@ The library transforms AWS Textract Blocks into a clean JSON structure:
 
 ### Bedrock - LLM Operations
 
-> **Note:** Only Anthropic Claude models are currently supported (any `model_id`
-> containing `anthropic.claude`, e.g. `anthropic.claude-3-5-sonnet-20241022-v2:0`).
-> Calling `invoke()`/`invoke_json()` with a model ID from another family (Titan,
-> Llama, Mistral, etc.) raises `BedrockError`.
+> **Note:** Supports Anthropic Claude, Amazon Titan, Meta Llama and Mistral
+> models, selected automatically from the `model_id`
+> (e.g. `anthropic.claude-3-5-sonnet-20241022-v2:0`, `amazon.titan-text-express-v1`,
+> `meta.llama3-8b-instruct-v1:0`, `mistral.mistral-7b-instruct-v0:2`).
+> Calling `invoke()`/`invoke_json()` with a model ID from another family
+> raises `BedrockError`.
 
 ```python
 from aws_simple import bedrock
