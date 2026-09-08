@@ -56,12 +56,12 @@ def main() -> None:
     print("\nExtracting text from local PDF...")
     doc = textract.extract_text_from_file("examples/sample_document.pdf")
 
-    print(f"\nDocument metadata:")
+    print("\nDocument metadata:")
     print(f"  - Total pages: {len(doc.pages)}")
     print(f"  - Total text length: {len(doc.full_text)} characters")
 
     # Access structured data
-    print(f"\n First page info:")
+    print("\n First page info:")
     if doc.pages:
         page = doc.pages[0]
         print(f"  - Page number: {page.page_number}")
@@ -70,7 +70,7 @@ def main() -> None:
         print(f"  - Tables detected: {len(page.tables)}")
 
         # Show first 3 lines
-        print(f"\n  First 3 lines:")
+        print("\n  First 3 lines:")
         for line in page.lines[:3]:
             print(f"    - {line.text} (confidence: {line.confidence:.1f}%)")
 
@@ -127,7 +127,7 @@ def main() -> None:
     Return as JSON with format: {"services": [{"name": "...", "use_case": "..."}]}
     """
     json_response = bedrock.invoke_json(json_prompt)
-    print(f"JSON response:")
+    print("JSON response:")
     print(json.dumps(json_response, indent=2))
 
     # ========================================
