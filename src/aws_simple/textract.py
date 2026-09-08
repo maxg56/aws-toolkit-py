@@ -17,6 +17,10 @@ def extract_text_from_file(local_path: str | Path) -> TextractDocument:
 
     Supports: PDF, PNG, JPEG, TIFF (max 5MB for synchronous detection)
 
+    Limitation: uses the synchronous Textract API, which only reliably
+    supports a single-page PDF or an image. Multi-page PDFs are not fully
+    supported (see https://github.com/maxg56/aws-toolkit-py/issues/11).
+
     Args:
         local_path: Path to local document file
 
@@ -59,6 +63,10 @@ def extract_text_from_s3(
     """
     Extract text and tables from a document stored in S3 using Textract.
 
+    Limitation: uses the synchronous Textract API, which only reliably
+    supports a single-page PDF or an image. Multi-page PDFs are not fully
+    supported (see https://github.com/maxg56/aws-toolkit-py/issues/11).
+
     Args:
         s3_key: S3 object key
         bucket: S3 bucket name (uses AWS_S3_BUCKET env var if not specified)
@@ -97,6 +105,10 @@ def extract_text_from_s3(
 def extract_text_simple_from_file(local_path: str | Path) -> str:
     """
     Extract only text (no tables) from a local file - faster operation.
+
+    Limitation: uses the synchronous Textract API, which only reliably
+    supports a single-page PDF or an image. Multi-page PDFs are not fully
+    supported (see https://github.com/maxg56/aws-toolkit-py/issues/11).
 
     Args:
         local_path: Path to local document file
@@ -140,6 +152,10 @@ def extract_text_simple_from_s3(
 ) -> str:
     """
     Extract only text (no tables) from S3 document - faster operation.
+
+    Limitation: uses the synchronous Textract API, which only reliably
+    supports a single-page PDF or an image. Multi-page PDFs are not fully
+    supported (see https://github.com/maxg56/aws-toolkit-py/issues/11).
 
     Args:
         s3_key: S3 object key
