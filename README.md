@@ -64,12 +64,32 @@ s3.download_file("docs/document.pdf", "/tmp/document.pdf")
 # Read object as bytes
 content = s3.read_object("docs/document.pdf")
 
+# Write bytes (or a str, encoded as UTF-8) directly, no temp file needed
+s3.put_object("docs/report.json", '{"status": "ok"}')
+s3.put_object("docs/report.bin", b"\x00\x01\x02")
+
+# Delete an object
+s3.delete_object("docs/document.pdf")
+
+# Copy an object (within a bucket, or across buckets)
+s3.copy_object("inbox/document.pdf", "archive/document.pdf")
+s3.copy_object(
+    "inbox/document.pdf",
+    "archive/document.pdf",
+    source_bucket="incoming",
+    dest_bucket="processed",
+)
+
 # List objects
 files = s3.list_objects(prefix="docs/")
 
 # Check if object exists
 exists = s3.object_exists("docs/document.pdf")
 ```
+
+All S3 functions take the bucket from the `AWS_S3_BUCKET` environment variable
+unless one is passed explicitly, and raise `S3Error` (chaining the underlying
+`ClientError`) with a message naming the `s3://bucket/key` involved.
 
 ### Textract - Document Extraction
 
