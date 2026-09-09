@@ -1,4 +1,4 @@
-.PHONY: help install install-dev test test-cov lint format format-check type-check build clean publish-test publish
+.PHONY: help install install-dev test test-cov test-integration lint format format-check type-check build clean publish-test publish
 
 help:
 	@echo "Available commands:"
@@ -6,6 +6,7 @@ help:
 	@echo "  install-dev   - Install package with dev dependencies"
 	@echo "  test          - Run tests"
 	@echo "  test-cov      - Run tests with coverage report"
+	@echo "  test-integration - Run integration tests against LocalStack (see README)"
 	@echo "  lint          - Run linter (ruff)"
 	@echo "  format        - Format code with black"
 	@echo "  format-check  - Check code formatting without modifying"
@@ -26,6 +27,10 @@ test:
 
 test-cov:
 	python3 -m pytest tests/ -v --cov=aws_simple --cov-report=html --cov-report=term
+
+# Requires a LocalStack S3 endpoint; see the README for how to start one.
+test-integration:
+	python3 -m pytest -m integration -v --no-cov
 
 lint:
 	python3 -m ruff check src/
