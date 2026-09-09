@@ -372,3 +372,137 @@ def test_object_exists_non_404_not_found_code_raises(mock_s3_client: MagicMock) 
 
     with pytest.raises(S3Error, match="Failed to check"):
         s3.object_exists("docs/missing.txt")
+
+
+def test_put_object_bytes(mock_s3_client: MagicMock) -> None:
+    """Bytes are written to S3 unchanged."""
+    s3.put_object("docs/blob.bin", b"\x00binary\xff")
+
+    mock_s3_client.put_object.assert_called_once_with(
+        Bucket="test-bucket", Key="docs/blob.bin", Body=b"\x00binary\xff"
+    )
+
+
+def test_put_object_encodes_str_as_utf8(mock_s3_client: MagicMock) -> None:
+    """A str body is encoded as UTF-8, mirroring read_object's bytes return."""
+    s3.put_object("docs/note.txt", "héllo")
+
+    mock_s3_client.put_object.assert_called_once_with(
+        Bucket="test-bucket", Key="docs/note.txt", Body="héllo".encode()
+    )
+
+
+def test_put_object_custom_bucket(mock_s3_client: MagicMock) -> None:
+    """A custom bucket overrides the configured default on write."""
+    s3.put_object("docs/x.txt", b"data", bucket="custom-bucket")
+
+    mock_s3_client.put_object.assert_called_once_with(
+        Bucket="custom-bucket", Key="docs/x.txt", Body=b"data"
+    )
+
+
+def test_put_object_client_error(mock_s3_client: MagicMock) -> None:
+    """A ClientError on write becomes an S3Error naming the destination."""
+    error = ClientError({"Error": {"Code": "AccessDenied", "Message": "denied"}}, "put_object")
+    mock_s3_client.put_object.side_effect = error
+
+    with pytest.raises(S3Error, match="Failed to write") as exc_info:
+        s3.put_object("docs/x.txt", b"data", bucket="my-bucket")
+
+    assert "s3://my-bucket/docs/x.txt" in str(exc_info.value)
+    assert exc_info.value.__cause__ is error
+
+
+def test_put_object_roundtrips_with_read_object(mock_s3_client: MagicMock) -> None:
+    """What put_object writes is what read_object would return."""
+    s3.put_object("docs/note.txt", "hello")
+    written = mock_s3_client.put_object.call_args.kwargs["Body"]
+
+    mock_body = MagicMock()
+    mock_body.read.return_value = written
+    mock_s3_client.get_object.return_value = {"Body": mock_body}
+
+    assert s3.read_object("docs/note.txt").decode() == "hello"
+
+
+def test_delete_object_success(mock_s3_client: MagicMock) -> None:
+    """A successful delete calls delete_object with the resolved bucket."""
+    s3.delete_object("docs/old.txt")
+
+    mock_s3_client.delete_object.assert_called_once_with(Bucket="test-bucket", Key="docs/old.txt")
+
+
+def test_delete_object_custom_bucket(mock_s3_client: MagicMock) -> None:
+    """A custom bucket overrides the configured default on delete."""
+    s3.delete_object("docs/old.txt", bucket="custom-bucket")
+
+    mock_s3_client.delete_object.assert_called_once_with(Bucket="custom-bucket", Key="docs/old.txt")
+
+
+def test_delete_object_client_error(mock_s3_client: MagicMock) -> None:
+    """A ClientError on delete becomes an S3Error naming the object."""
+    error = ClientError({"Error": {"Code": "AccessDenied", "Message": "denied"}}, "delete_object")
+    mock_s3_client.delete_object.side_effect = error
+
+    with pytest.raises(S3Error, match="Failed to delete") as exc_info:
+        s3.delete_object("docs/old.txt", bucket="my-bucket")
+
+    assert "s3://my-bucket/docs/old.txt" in str(exc_info.value)
+    assert exc_info.value.__cause__ is error
+
+
+def test_copy_object_within_default_bucket(mock_s3_client: MagicMock) -> None:
+    """Both buckets default to the configured one for an in-bucket copy."""
+    s3.copy_object("docs/in.pdf", "archive/in.pdf")
+
+    mock_s3_client.copy_object.assert_called_once_with(
+        Bucket="test-bucket",
+        Key="archive/in.pdf",
+        CopySource={"Bucket": "test-bucket", "Key": "docs/in.pdf"},
+    )
+
+
+def test_copy_object_across_buckets(mock_s3_client: MagicMock) -> None:
+    """Source and destination buckets can be overridden independently."""
+    s3.copy_object(
+        "docs/in.pdf",
+        "archive/in.pdf",
+        source_bucket="source-bucket",
+        dest_bucket="dest-bucket",
+    )
+
+    mock_s3_client.copy_object.assert_called_once_with(
+        Bucket="dest-bucket",
+        Key="archive/in.pdf",
+        CopySource={"Bucket": "source-bucket", "Key": "docs/in.pdf"},
+    )
+
+
+def test_copy_object_source_bucket_only(mock_s3_client: MagicMock) -> None:
+    """Overriding only the source leaves the destination on the default bucket."""
+    s3.copy_object("docs/in.pdf", "archive/in.pdf", source_bucket="source-bucket")
+
+    mock_s3_client.copy_object.assert_called_once_with(
+        Bucket="test-bucket",
+        Key="archive/in.pdf",
+        CopySource={"Bucket": "source-bucket", "Key": "docs/in.pdf"},
+    )
+
+
+def test_copy_object_client_error(mock_s3_client: MagicMock) -> None:
+    """A ClientError on copy becomes an S3Error naming both endpoints."""
+    error = ClientError({"Error": {"Code": "NoSuchKey", "Message": "gone"}}, "copy_object")
+    mock_s3_client.copy_object.side_effect = error
+
+    with pytest.raises(S3Error, match="Failed to copy") as exc_info:
+        s3.copy_object(
+            "docs/missing.pdf",
+            "archive/missing.pdf",
+            source_bucket="source-bucket",
+            dest_bucket="dest-bucket",
+        )
+
+    message = str(exc_info.value)
+    assert "s3://source-bucket/docs/missing.pdf" in message
+    assert "s3://dest-bucket/archive/missing.pdf" in message
+    assert exc_info.value.__cause__ is error

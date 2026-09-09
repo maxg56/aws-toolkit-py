@@ -10,6 +10,9 @@ Example usage:
     # S3 operations
     s3.upload_file("doc.pdf", "docs/doc.pdf")
     content = s3.read_object("docs/doc.pdf")
+    s3.put_object("docs/note.txt", "written from memory")
+    s3.copy_object("docs/doc.pdf", "archive/doc.pdf")
+    s3.delete_object("docs/doc.pdf")
 
     # Textract extraction
     doc = textract.extract_text_from_s3("docs/doc.pdf")

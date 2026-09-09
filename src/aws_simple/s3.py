@@ -92,6 +92,31 @@ def read_object(s3_key: str, bucket: str | None = None) -> bytes:
         raise S3Error(f"Failed to read s3://{bucket}/{s3_key}: {e}") from e
 
 
+def put_object(s3_key: str, body: bytes | str, bucket: str | None = None) -> None:
+    """
+    Write content directly to an S3 object.
+
+    Mirrors :func:`read_object`: it writes the bytes that ``read_object``
+    would return, without needing the content on disk first.
+
+    Args:
+        s3_key: S3 object key (path in bucket)
+        body: Content to write. ``str`` values are encoded as UTF-8.
+        bucket: S3 bucket name (uses AWS_S3_BUCKET env var if not specified)
+
+    Raises:
+        S3Error: If write fails
+    """
+    bucket = bucket or config.s3_bucket
+    data = body.encode("utf-8") if isinstance(body, str) else body
+
+    try:
+        client = AWSClients.get_s3_client()
+        client.put_object(Bucket=bucket, Key=s3_key, Body=data)
+    except ClientError as e:
+        raise S3Error(f"Failed to write s3://{bucket}/{s3_key}: {e}") from e
+
+
 def list_objects(
     prefix: str = "",
     bucket: str | None = None,
@@ -182,3 +207,63 @@ def object_exists(s3_key: str, bucket: str | None = None) -> bool:
         if e.response["Error"]["Code"] == "404":
             return False
         raise S3Error(f"Failed to check if s3://{bucket}/{s3_key} exists: {e}") from e
+
+
+def delete_object(s3_key: str, bucket: str | None = None) -> None:
+    """
+    Delete an S3 object.
+
+    Deleting a key that does not exist is not an error: S3's ``DeleteObject``
+    is idempotent and reports success either way.
+
+    Args:
+        s3_key: S3 object key
+        bucket: S3 bucket name (uses AWS_S3_BUCKET env var if not specified)
+
+    Raises:
+        S3Error: If delete fails
+    """
+    bucket = bucket or config.s3_bucket
+
+    try:
+        client = AWSClients.get_s3_client()
+        client.delete_object(Bucket=bucket, Key=s3_key)
+    except ClientError as e:
+        raise S3Error(f"Failed to delete s3://{bucket}/{s3_key}: {e}") from e
+
+
+def copy_object(
+    source_key: str,
+    dest_key: str,
+    source_bucket: str | None = None,
+    dest_bucket: str | None = None,
+) -> None:
+    """
+    Copy an S3 object, within a bucket or across buckets.
+
+    Args:
+        source_key: S3 object key to copy from
+        dest_key: S3 object key to copy to
+        source_bucket: Source bucket name (uses AWS_S3_BUCKET env var if not
+            specified)
+        dest_bucket: Destination bucket name (uses AWS_S3_BUCKET env var if
+            not specified)
+
+    Raises:
+        S3Error: If copy fails
+    """
+    source_bucket = source_bucket or config.s3_bucket
+    dest_bucket = dest_bucket or config.s3_bucket
+
+    try:
+        client = AWSClients.get_s3_client()
+        client.copy_object(
+            Bucket=dest_bucket,
+            Key=dest_key,
+            CopySource={"Bucket": source_bucket, "Key": source_key},
+        )
+    except ClientError as e:
+        raise S3Error(
+            f"Failed to copy s3://{source_bucket}/{source_key} "
+            f"to s3://{dest_bucket}/{dest_key}: {e}"
+        ) from e
