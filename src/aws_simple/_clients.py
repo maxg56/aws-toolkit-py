@@ -113,7 +113,13 @@ class AWSClients:
 
     @classmethod
     def reset_clients(cls) -> None:
-        """Reset all cached clients (useful for testing)."""
+        """
+        Drop every cached client so the next call rebuilds them.
+
+        This is the cache-invalidation hook: ``configure()`` (and any other
+        configuration mutation) calls it, which is what makes a configuration
+        change apply to calls made after a client was already built.
+        """
         cls._s3_client = None
         cls._textract_client = None
         cls._bedrock_runtime_client = None
