@@ -11,8 +11,6 @@ Example usage:
     s3.upload_file("doc.pdf", "docs/doc.pdf")
     content = s3.read_object("docs/doc.pdf")
     s3.put_object("docs/note.txt", "written from memory")
-    s3.copy_object("docs/doc.pdf", "archive/doc.pdf")
-    s3.delete_object("docs/doc.pdf")
 
     # Textract extraction
     doc = textract.extract_text_from_s3("docs/doc.pdf")
@@ -22,6 +20,10 @@ Example usage:
     # Bedrock LLM
     summary = bedrock.invoke("Summarize this document")
     data = bedrock.invoke_json("Extract key points as JSON")
+
+    # Archive the document once it has been processed
+    s3.copy_object("docs/doc.pdf", "archive/doc.pdf")
+    s3.delete_object("docs/doc.pdf")
 """
 
 from importlib.metadata import PackageNotFoundError
