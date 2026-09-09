@@ -13,12 +13,27 @@ BOUNDING_BOX_HEIGHT_MEDIUM = 0.05
 BOUNDING_BOX_WIDTH_MEDIUM = 0.15
 
 
+# Environment variables that must never leak from the developer's shell or CI
+# runner into a test, since they change the kwargs handed to boto3.
+ISOLATED_ENV_VARS = (
+    "AWS_ENDPOINT_URL",
+    "AWS_S3_ENDPOINT_URL",
+    "AWS_TEXTRACT_ENDPOINT_URL",
+    "AWS_BEDROCK_ENDPOINT_URL",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_SESSION_TOKEN",
+)
+
+
 @pytest.fixture(autouse=True)
 def mock_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     """Mock environment variables for testing."""
     monkeypatch.setenv("AWS_REGION", "us-east-1")
     monkeypatch.setenv("AWS_S3_BUCKET", "test-bucket")
     monkeypatch.setenv("AWS_BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0")
+    for name in ISOLATED_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
 
 
 @pytest.fixture

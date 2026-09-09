@@ -6,6 +6,7 @@ A clean, simple Python wrapper around AWS services (S3, Textract, Bedrock).
 
 - **Simple API**: Clean, intuitive interface without exposing Boto3 complexity
 - **Environment-based configuration**: No credentials or config in code
+- **Custom endpoints**: Works against LocalStack, MinIO or any S3-compatible stack
 - **Structured Textract output**: Transforms AWS Blocks into clean, serializable JSON
 - **Type-safe**: Fully typed with Python 3.10+ support
 - **Production-ready**: Works with IAM roles, Docker, CI/CD pipelines
@@ -37,16 +38,65 @@ export AWS_BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
 export AWS_TEXTRACT_REGION=us-east-1
 export AWS_BEDROCK_REGION=us-east-1
 export AWS_SSL_VERIFY=true  # SSL certificate verification (default: true, set to false to disable)
+
+# Optional: custom endpoints (LocalStack, MinIO, any S3-compatible stack)
+export AWS_ENDPOINT_URL=http://localhost:4566        # applies to every service
+export AWS_S3_ENDPOINT_URL=http://localhost:9000     # per-service override
+export AWS_TEXTRACT_ENDPOINT_URL=http://localhost:4566
+export AWS_BEDROCK_ENDPOINT_URL=http://localhost:4566
+
+# Optional: explicit credentials (see below)
+export AWS_ACCESS_KEY_ID=...
+export AWS_SECRET_ACCESS_KEY=...
+export AWS_SESSION_TOKEN=...   # only for temporary credentials
 ```
 
 Or use a `.env` file (see [.env.example](.env.example)).
 
+### Custom endpoints (LocalStack / MinIO)
+
+Set `AWS_ENDPOINT_URL` to point every client at an AWS-compatible stack, or a
+per-service variable (`AWS_S3_ENDPOINT_URL`, `AWS_TEXTRACT_ENDPOINT_URL`,
+`AWS_BEDROCK_ENDPOINT_URL`) to override it for a single service. Each
+per-service variable falls back to `AWS_ENDPOINT_URL`, and when none is set the
+regular AWS endpoints are used.
+
+```bash
+# Everything against LocalStack, S3 against a local MinIO
+export AWS_ENDPOINT_URL=http://localhost:4566
+export AWS_S3_ENDPOINT_URL=http://localhost:9000
+export AWS_ACCESS_KEY_ID=test
+export AWS_SECRET_ACCESS_KEY=test
+```
+
+If the local stack serves a self-signed certificate, `AWS_SSL_VERIFY=false`
+disables verification. Never do that against a real AWS endpoint.
+
 ### AWS Credentials
 
-AWS credentials should be configured separately via:
+By default credentials are resolved by the standard boto3 chain, which is the
+recommended setup:
 - **IAM Role** (recommended for production/EC2/ECS/Lambda)
-- **~/.aws/credentials** file (for local development)
-- Environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (not recommended)
+- **~/.aws/credentials** file, optionally selected with `AWS_PROFILE`
+- The ambient environment
+
+They can also be provided explicitly, which is what local stacks and
+applications juggling per-tenant or per-request credentials need:
+
+| Variable | Notes |
+|---|---|
+| `AWS_ACCESS_KEY_ID` | optional |
+| `AWS_SECRET_ACCESS_KEY` | optional |
+| `AWS_SESSION_TOKEN` | optional, for temporary credentials |
+
+`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are only handed to boto3 when
+**both** are set — a partial pair is ignored, so it can never silently break the
+default credential chain. `AWS_SESSION_TOKEN` is only sent alongside a complete
+pair.
+
+Credential values are never logged, never included in a `Config` repr, and are
+scrubbed out of `ClientInitializationError` messages, so a boto3 error quoting a
+key does not propagate it.
 
 ## Usage
 
