@@ -1,5 +1,7 @@
 """Tests for the internal AWS client factory."""
 
+from collections.abc import Callable
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -9,6 +11,13 @@ from aws_simple._clients import AWSClients
 from aws_simple.exceptions import ClientInitializationError
 
 EXPECTED_TWO = 2
+EXPECTED_THREE = 3
+
+# Fake credential material — never real keys, only used to assert plumbing
+# and that nothing leaks into error messages.
+FAKE_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"
+FAKE_SECRET_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+FAKE_SESSION_TOKEN = "FQoGZXIvYXdzEXAMPLESESSIONTOKEN"
 
 
 # ---------------------------------------------------------------------------
@@ -245,3 +254,227 @@ def test_unexpected_error_is_not_wrapped(reset_clients: None) -> None:
 
         with pytest.raises(RuntimeError, match="boom"):
             AWSClients.get_s3_client()
+
+
+# ---------------------------------------------------------------------------
+# explicit credentials
+# ---------------------------------------------------------------------------
+
+
+def test_explicit_credentials_are_forwarded(
+    reset_clients: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A complete key pair is handed to boto3.Session."""
+    monkeypatch.delenv("AWS_PROFILE", raising=False)
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", FAKE_ACCESS_KEY)
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", FAKE_SECRET_KEY)
+
+    with patch("aws_simple._clients.boto3.Session") as mock_session:
+        AWSClients._build_session("eu-west-3")
+
+    mock_session.assert_called_once_with(
+        region_name="eu-west-3",
+        aws_access_key_id=FAKE_ACCESS_KEY,
+        aws_secret_access_key=FAKE_SECRET_KEY,
+    )
+
+
+def test_session_token_is_forwarded_with_the_key_pair(
+    reset_clients: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AWS_SESSION_TOKEN completes the temporary-credential triplet."""
+    monkeypatch.delenv("AWS_PROFILE", raising=False)
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", FAKE_ACCESS_KEY)
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", FAKE_SECRET_KEY)
+    monkeypatch.setenv("AWS_SESSION_TOKEN", FAKE_SESSION_TOKEN)
+
+    with patch("aws_simple._clients.boto3.Session") as mock_session:
+        AWSClients._build_session("eu-west-3")
+
+    assert mock_session.call_args.kwargs["aws_session_token"] == FAKE_SESSION_TOKEN
+
+
+def test_session_token_alone_is_ignored(
+    reset_clients: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A session token without a key pair never reaches boto3."""
+    monkeypatch.delenv("AWS_PROFILE", raising=False)
+    monkeypatch.setenv("AWS_SESSION_TOKEN", FAKE_SESSION_TOKEN)
+
+    with patch("aws_simple._clients.boto3.Session") as mock_session:
+        AWSClients._build_session("eu-west-3")
+
+    mock_session.assert_called_once_with(region_name="eu-west-3")
+
+
+@pytest.mark.parametrize(
+    "env",
+    [
+        {"AWS_ACCESS_KEY_ID": FAKE_ACCESS_KEY},
+        {"AWS_SECRET_ACCESS_KEY": FAKE_SECRET_KEY},
+    ],
+)
+def test_partial_credentials_fall_back_to_the_default_chain(
+    reset_clients: None, monkeypatch: pytest.MonkeyPatch, env: dict[str, str]
+) -> None:
+    """Half a key pair is ignored so the default credential chain still works."""
+    monkeypatch.delenv("AWS_PROFILE", raising=False)
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+
+    with patch("aws_simple._clients.boto3.Session") as mock_session:
+        AWSClients._build_session("eu-west-3")
+
+    mock_session.assert_called_once_with(region_name="eu-west-3")
+
+
+def test_credentials_and_profile_are_both_forwarded(
+    reset_clients: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An explicit key pair does not suppress the configured profile."""
+    monkeypatch.setenv("AWS_PROFILE", "dev-profile")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", FAKE_ACCESS_KEY)
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", FAKE_SECRET_KEY)
+
+    with patch("aws_simple._clients.boto3.Session") as mock_session:
+        AWSClients.get_s3_client()
+
+    kwargs = mock_session.call_args.kwargs
+    assert kwargs["profile_name"] == "dev-profile"
+    assert kwargs["aws_access_key_id"] == FAKE_ACCESS_KEY
+
+
+# ---------------------------------------------------------------------------
+# endpoint_url
+# ---------------------------------------------------------------------------
+
+
+def test_no_endpoint_url_by_default(reset_clients: None) -> None:
+    """Without configuration no endpoint_url kwarg is sent to boto3."""
+    with patch("aws_simple._clients.boto3.Session") as mock_session:
+        AWSClients.get_s3_client()
+
+    assert "endpoint_url" not in mock_session.return_value.client.call_args.kwargs
+
+
+@pytest.mark.parametrize(
+    ("getter", "service"),
+    [
+        (AWSClients.get_s3_client, "s3"),
+        (AWSClients.get_textract_client, "textract"),
+        (AWSClients.get_bedrock_runtime_client, "bedrock-runtime"),
+    ],
+)
+def test_global_endpoint_url_applies_to_every_service(
+    reset_clients: None,
+    monkeypatch: pytest.MonkeyPatch,
+    getter: Callable[[], Any],
+    service: str,
+) -> None:
+    """AWS_ENDPOINT_URL is honoured by S3, Textract and Bedrock."""
+    monkeypatch.setenv("AWS_ENDPOINT_URL", "http://localhost:4566")
+
+    with patch("aws_simple._clients.boto3.Session") as mock_session:
+        getter()
+
+    mock_session.return_value.client.assert_called_once_with(
+        service, verify=True, endpoint_url="http://localhost:4566"
+    )
+
+
+@pytest.mark.parametrize(
+    ("env_var", "getter", "service"),
+    [
+        ("AWS_S3_ENDPOINT_URL", AWSClients.get_s3_client, "s3"),
+        ("AWS_TEXTRACT_ENDPOINT_URL", AWSClients.get_textract_client, "textract"),
+        ("AWS_BEDROCK_ENDPOINT_URL", AWSClients.get_bedrock_runtime_client, "bedrock-runtime"),
+    ],
+)
+def test_per_service_endpoint_url_overrides_the_global_one(
+    reset_clients: None,
+    monkeypatch: pytest.MonkeyPatch,
+    env_var: str,
+    getter: Callable[[], Any],
+    service: str,
+) -> None:
+    """A service-specific endpoint wins over AWS_ENDPOINT_URL."""
+    monkeypatch.setenv("AWS_ENDPOINT_URL", "http://localhost:4566")
+    monkeypatch.setenv(env_var, "http://localhost:9000")
+
+    with patch("aws_simple._clients.boto3.Session") as mock_session:
+        getter()
+
+    mock_session.return_value.client.assert_called_once_with(
+        service, verify=True, endpoint_url="http://localhost:9000"
+    )
+
+
+def test_endpoint_url_combines_with_disabled_ssl_verify(
+    reset_clients: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A self-signed local endpoint can be used with verification disabled."""
+    monkeypatch.setenv("AWS_ENDPOINT_URL", "https://localhost:4566")
+    monkeypatch.setenv("AWS_SSL_VERIFY", "false")
+
+    with patch("aws_simple._clients.boto3.Session") as mock_session:
+        AWSClients.get_s3_client()
+
+    mock_session.return_value.client.assert_called_once_with(
+        "s3", verify=False, endpoint_url="https://localhost:4566"
+    )
+
+
+# ---------------------------------------------------------------------------
+# credential leakage
+# ---------------------------------------------------------------------------
+
+
+def test_error_message_never_leaks_credentials(
+    reset_clients: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A botocore error quoting the credentials is not re-raised verbatim."""
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", FAKE_ACCESS_KEY)
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", FAKE_SECRET_KEY)
+    monkeypatch.setenv("AWS_SESSION_TOKEN", FAKE_SESSION_TOKEN)
+
+    error = ClientError(
+        {
+            "Error": {
+                "Code": "InvalidClientTokenId",
+                "Message": (
+                    f"key={FAKE_ACCESS_KEY} secret={FAKE_SECRET_KEY} "
+                    f"token={FAKE_SESSION_TOKEN} was rejected"
+                ),
+            }
+        },
+        "CreateClient",
+    )
+
+    with patch("aws_simple._clients.boto3.Session") as mock_session:
+        mock_session.return_value.client.side_effect = error
+
+        with pytest.raises(ClientInitializationError) as exc_info:
+            AWSClients.get_s3_client()
+
+    message = str(exc_info.value)
+    assert FAKE_ACCESS_KEY not in message
+    assert FAKE_SECRET_KEY not in message
+    assert FAKE_SESSION_TOKEN not in message
+    assert message.count("***") == EXPECTED_THREE
+    assert "Failed to initialize S3 client" in message
+
+
+def test_error_message_is_untouched_without_credentials(reset_clients: None) -> None:
+    """Redaction leaves an ordinary error message alone."""
+    error = ClientError(
+        {"Error": {"Code": "UnrecognizedClientException", "Message": "bad token"}},
+        "CreateClient",
+    )
+
+    with patch("aws_simple._clients.boto3.Session") as mock_session:
+        mock_session.return_value.client.side_effect = error
+
+        with pytest.raises(ClientInitializationError, match="bad token") as exc_info:
+            AWSClients.get_textract_client()
+
+    assert "***" not in str(exc_info.value)

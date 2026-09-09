@@ -13,6 +13,10 @@ load_dotenv()
 class Config:
     """Centralized configuration for AWS services."""
 
+    def __repr__(self) -> str:
+        """Return a representation that never exposes credential material."""
+        return f"{type(self).__name__}()"
+
     @staticmethod
     def _get_required(key: str) -> str:
         """Get required environment variable or raise error."""
@@ -41,6 +45,17 @@ class Config:
         return self._get_optional("AWS_PROFILE")
 
     @property
+    def endpoint_url(self) -> str | None:
+        """
+        Custom endpoint URL applied to every service (optional).
+
+        Set it to talk to an AWS-compatible stack such as LocalStack or MinIO,
+        for example ``http://localhost:4566``. Per-service variables override
+        this one.
+        """
+        return self._get_optional("AWS_ENDPOINT_URL")
+
+    @property
     def ssl_verify(self) -> bool:
         """
         SSL certificate verification flag (default: True).
@@ -59,17 +74,58 @@ class Config:
         value = self._get_optional("AWS_SSL_VERIFY", "true") or "true"
         return value.lower() not in ("false", "0", "no", "off")
 
+    # Credentials
+    #
+    # These are optional: when they are unset the default boto3 credential
+    # chain (IAM role, ~/.aws/credentials, instance metadata, ...) is used.
+    # SECURITY: never log, print or interpolate these values into an error
+    # message.
+    @property
+    def aws_access_key_id(self) -> str | None:
+        """Explicit AWS access key ID (optional). Never log this value."""
+        return self._get_optional("AWS_ACCESS_KEY_ID")
+
+    @property
+    def aws_secret_access_key(self) -> str | None:
+        """Explicit AWS secret access key (optional). Never log this value."""
+        return self._get_optional("AWS_SECRET_ACCESS_KEY")
+
+    @property
+    def aws_session_token(self) -> str | None:
+        """Explicit AWS session token, for temporary credentials (optional)."""
+        return self._get_optional("AWS_SESSION_TOKEN")
+
+    @property
+    def has_explicit_credentials(self) -> bool:
+        """
+        Whether a complete explicit credential pair is configured.
+
+        A partial set (only one of the two) is deliberately ignored: handing
+        it to boto3 would silently break the default credential chain.
+        """
+        return bool(self.aws_access_key_id and self.aws_secret_access_key)
+
     # S3
     @property
     def s3_bucket(self) -> str:
         """Default S3 bucket name."""
         return self._get_required("AWS_S3_BUCKET")
 
+    @property
+    def s3_endpoint_url(self) -> str | None:
+        """S3 endpoint URL (defaults to endpoint_url)."""
+        return self._get_optional("AWS_S3_ENDPOINT_URL") or self.endpoint_url
+
     # Textract
     @property
     def textract_region(self) -> str:
         """Textract region (defaults to aws_region)."""
         return self._get_optional("AWS_TEXTRACT_REGION") or self.aws_region
+
+    @property
+    def textract_endpoint_url(self) -> str | None:
+        """Textract endpoint URL (defaults to endpoint_url)."""
+        return self._get_optional("AWS_TEXTRACT_ENDPOINT_URL") or self.endpoint_url
 
     # Bedrock
     @property
@@ -84,6 +140,11 @@ class Config:
     def bedrock_region(self) -> str:
         """Bedrock region (defaults to aws_region)."""
         return self._get_optional("AWS_BEDROCK_REGION") or self.aws_region
+
+    @property
+    def bedrock_endpoint_url(self) -> str | None:
+        """Bedrock Runtime endpoint URL (defaults to endpoint_url)."""
+        return self._get_optional("AWS_BEDROCK_ENDPOINT_URL") or self.endpoint_url
 
 
 # Singleton instance
