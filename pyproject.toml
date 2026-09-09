@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aws-simple"
-version = "1.0.0"
+version = "1.1.0"
 description = "A clean, simple wrapper around AWS services (S3, Textract, Bedrock)"
 readme = "README.md"
 requires-python = ">=3.10"
