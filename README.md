@@ -25,7 +25,8 @@ pip install -e .
 
 ## Configuration
 
-All configuration is done via environment variables:
+Configuration comes from environment variables (or from code — see
+[Programmatic configuration](#programmatic-configuration)):
 
 ```bash
 # Required
@@ -97,6 +98,94 @@ pair.
 Credential values are never logged, never included in a `Config` repr, and are
 scrubbed out of `ClientInitializationError` messages, so a boto3 error quoting a
 key does not propagate it.
+
+## Programmatic configuration
+
+Everything above can also be set from code, which is what an application that
+reads its settings from a config file, Parameter Store or CLI flags needs:
+
+```python
+from aws_simple import configure
+
+configure(
+    region="eu-west-3",
+    bucket="my-bucket",
+    endpoint_url="http://localhost:4566",
+)
+```
+
+All arguments are optional and keyword-only. Arguments left out are untouched,
+so successive calls accumulate.
+
+### Precedence
+
+From strongest to weakest:
+
+1. **`configure()`** — values set from code
+2. **Environment variables** — `AWS_REGION`, `AWS_S3_BUCKET`, …
+3. **`.env` file** — loaded at import time, and only for variables the
+   environment does not already define
+4. **Built-in defaults** — e.g. `us-east-1` for the region
+
+A setting you never pass to `configure()` keeps coming from the environment, so
+you can override just the region and let everything else resolve as usual.
+
+### Settings
+
+| `configure()` argument | Overrides |
+|---|---|
+| `region` | `AWS_REGION` |
+| `profile` | `AWS_PROFILE` |
+| `bucket` | `AWS_S3_BUCKET` |
+| `endpoint_url` | `AWS_ENDPOINT_URL` |
+| `s3_endpoint_url` | `AWS_S3_ENDPOINT_URL` |
+| `textract_region` | `AWS_TEXTRACT_REGION` |
+| `textract_endpoint_url` | `AWS_TEXTRACT_ENDPOINT_URL` |
+| `bedrock_region` | `AWS_BEDROCK_REGION` |
+| `bedrock_endpoint_url` | `AWS_BEDROCK_ENDPOINT_URL` |
+| `bedrock_model_id` | `AWS_BEDROCK_MODEL_ID` |
+| `aws_access_key_id` | `AWS_ACCESS_KEY_ID` |
+| `aws_secret_access_key` | `AWS_SECRET_ACCESS_KEY` |
+| `aws_session_token` | `AWS_SESSION_TOKEN` |
+
+Credentials passed to `configure()` follow the same rules as their environment
+counterparts: a partial pair is ignored, and the values are never logged, never
+part of a `Config` repr, and are scrubbed out of client initialization errors.
+
+### Reconfiguring at runtime
+
+AWS clients are built once and cached. **Every configuration change through
+`configure()` invalidates that cache**, so it applies to the next call even when
+a client was already built:
+
+```python
+from aws_simple import configure, s3
+
+s3.list_objects("a/")              # client built for the current region
+configure(region="eu-west-3")      # cached clients dropped
+s3.list_objects("b/")              # rebuilt: hits eu-west-3
+```
+
+Mutating `os.environ` after the first call does **not** do this — the already
+built client keeps its old settings. Use `configure()` instead.
+
+`reset_configuration()` drops every value set from code, so configuration falls
+back to the environment (this also invalidates the cache):
+
+```python
+from aws_simple import reset_configuration
+
+reset_configuration()
+```
+
+### Per-call region overrides
+
+Passing a `region` to an individual service call (`s3.list_objects(..., region=...)`)
+is **out of scope**: clients are cached per service, not per region, and a
+per-call region would still leave the bucket, endpoint and credentials on the
+global configuration. `configure()` is the supported way to change region — call
+it when your application switches region, or once per region-scoped unit of
+work.
 
 ## Usage
 
@@ -303,7 +392,7 @@ print(json.dumps(invoice_data, indent=2))
 
 ```
 aws-simple/
-├── config.py           # Environment variable configuration
+├── config.py           # Configuration: env vars, .env and configure()
 ├── exceptions.py       # Custom exceptions
 ├── _clients.py         # AWS client factory (internal)
 ├── s3.py              # S3 operations
@@ -318,7 +407,8 @@ aws-simple/
 ## Design Principles
 
 1. **No Boto3 in public API**: AWS implementation details are hidden
-2. **Environment-based config**: All configuration via env vars
+2. **Environment-based config**: Env vars by default, overridable from code
+   with `configure()`
 3. **Clean output formats**: No raw AWS responses exposed
 4. **Type safety**: Full type hints for better IDE support
 5. **Simple error handling**: Custom exceptions for each service

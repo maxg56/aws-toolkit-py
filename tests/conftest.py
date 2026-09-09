@@ -36,6 +36,16 @@ def mock_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(name, raising=False)
 
 
+@pytest.fixture(autouse=True)
+def reset_configuration() -> Generator[None, None, None]:
+    """Drop programmatic overrides so configure() never leaks between tests."""
+    from aws_simple.config import config
+
+    config.clear_overrides()
+    yield
+    config.clear_overrides()
+
+
 @pytest.fixture
 def reset_clients() -> Generator[None, None, None]:
     """Reset AWS clients singleton before and after each test."""
