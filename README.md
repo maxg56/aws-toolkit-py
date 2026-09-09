@@ -64,11 +64,27 @@ s3.download_file("docs/document.pdf", "/tmp/document.pdf")
 # Read object as bytes
 content = s3.read_object("docs/document.pdf")
 
+# Write bytes (or text, encoded as UTF-8) directly, without a temp file
+s3.put_object("docs/report.json", b'{"status": "ok"}')
+s3.put_object("docs/report.txt", "plain text")
+
 # List objects
 files = s3.list_objects(prefix="docs/")
 
 # Check if object exists
 exists = s3.object_exists("docs/document.pdf")
+
+# Copy an object (within a bucket, or across buckets)
+s3.copy_object("docs/document.pdf", "archive/document.pdf")
+s3.copy_object(
+    "docs/document.pdf",
+    "archive/document.pdf",
+    source_bucket="in-bucket",
+    dest_bucket="out-bucket",
+)
+
+# Delete an object
+s3.delete_object("docs/document.pdf")
 ```
 
 ### Textract - Document Extraction
