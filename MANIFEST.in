@@ -4,6 +4,7 @@ include pyproject.toml
 include .env.example
 
 recursive-include src/aws_simple *.py
+include src/aws_simple/py.typed
 recursive-include tests *.py
 
 exclude examples/*
