@@ -77,10 +77,13 @@ addopts = [
     "-v",
     "--strict-markers",
     "--tb=short",
+    "-m",
+    "not integration",
     "--cov=aws_simple",
     "--cov-report=term-missing",
     "--cov-report=html",
 ]
 markers = [
     "unit: Unit tests",
+    "integration: Integration tests against a real LocalStack instance (excluded by default; run with `pytest -m integration`)",
 ]

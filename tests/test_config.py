@@ -146,6 +146,40 @@ def test_config_partial_credentials_are_not_explicit(
     assert Config().has_explicit_credentials is False
 
 
+def test_config_retry_and_timeout_defaults() -> None:
+    """Retry/timeout settings default to standard mode with generous timeouts."""
+    config = Config()
+
+    assert config.max_attempts == 3
+    assert config.retry_mode == "standard"
+    assert config.connect_timeout == 10
+    assert config.read_timeout == 60
+
+
+def test_config_invalid_retry_mode_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An unrecognised AWS_RETRY_MODE is rejected instead of reaching botocore."""
+    monkeypatch.setenv("AWS_RETRY_MODE", "yolo")
+
+    config = Config()
+    with pytest.raises(ConfigurationError, match="Invalid AWS_RETRY_MODE: 'yolo'"):
+        _ = config.retry_mode
+
+
+def test_config_retry_and_timeout_overridable_via_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Retry/timeout settings can be overridden with environment variables."""
+    monkeypatch.setenv("AWS_MAX_ATTEMPTS", "10")
+    monkeypatch.setenv("AWS_RETRY_MODE", "legacy")
+    monkeypatch.setenv("AWS_CONNECT_TIMEOUT", "5")
+    monkeypatch.setenv("AWS_READ_TIMEOUT", "30")
+
+    config = Config()
+
+    assert config.max_attempts == 10
+    assert config.retry_mode == "legacy"
+    assert config.connect_timeout == 5
+    assert config.read_timeout == 30
+
+
 def test_config_repr_does_not_expose_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     """Repr'ing the config never prints credential material."""
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIAIOSFODNN7EXAMPLE")

@@ -1,12 +1,15 @@
 """Internal AWS clients factory (not exposed in public API)."""
 
+import warnings
 from typing import Any
+from urllib.parse import urlparse
 
 import boto3
+from botocore.config import Config as BotocoreConfig
 from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
 
 from .config import config
-from .exceptions import ClientInitializationError
+from .exceptions import ClientInitializationError, ConfigurationError
 
 # Placeholder substituted for credential material found in an error message.
 _REDACTED = "***"
@@ -29,12 +32,26 @@ def _sanitize(message: str) -> str:
     return message
 
 
+def _is_aws_endpoint(endpoint_url: str | None) -> bool:
+    """
+    Whether the given endpoint is real AWS.
+
+    ``None`` means no custom endpoint was configured, i.e. the default AWS
+    endpoint for the service/region is used.
+    """
+    if endpoint_url is None:
+        return True
+    host = urlparse(endpoint_url).hostname or ""
+    return host == "amazonaws.com" or host.endswith(".amazonaws.com")
+
+
 class AWSClients:
     """Factory for creating and caching AWS service clients."""
 
     _s3_client: Any | None = None
     _textract_client: Any | None = None
     _bedrock_runtime_client: Any | None = None
+    _warned_insecure_endpoints: set[str] = set()
 
     @classmethod
     def _session_kwargs(cls, region_name: str) -> dict[str, Any]:
@@ -61,9 +78,47 @@ class AWSClients:
         return boto3.Session(**cls._session_kwargs(region_name))
 
     @classmethod
+    def _botocore_config(cls) -> BotocoreConfig:
+        """Build the retry/timeout configuration shared by every client."""
+        return BotocoreConfig(
+            retries={"max_attempts": config.max_attempts, "mode": config.retry_mode},
+            connect_timeout=config.connect_timeout,
+            read_timeout=config.read_timeout,
+        )
+
+    @classmethod
+    def _check_ssl_verify(cls, endpoint_url: str | None) -> None:
+        """
+        Enforce that SSL verification can only be disabled for a non-AWS endpoint.
+
+        Raises ConfigurationError if verification is disabled for what resolves
+        to a real AWS endpoint, and emits a UserWarning (once per endpoint) when
+        it is honoured for a custom one.
+        """
+        if config.ssl_verify:
+            return
+        if _is_aws_endpoint(endpoint_url):
+            raise ConfigurationError(
+                "SSL certificate verification cannot be disabled for an AWS "
+                f"endpoint ({endpoint_url or 'the default AWS endpoint'}). "
+                "AWS_INSECURE_DISABLE_SSL_VERIFY only applies to a custom "
+                "endpoint_url (e.g. LocalStack or MinIO)."
+            )
+        warn_key = endpoint_url or ""
+        if warn_key not in cls._warned_insecure_endpoints:
+            cls._warned_insecure_endpoints.add(warn_key)
+            warnings.warn(
+                f"SSL certificate verification is disabled for endpoint {endpoint_url!r}. "
+                "Only use this for local development/testing with self-signed certificates.",
+                UserWarning,
+                stacklevel=3,
+            )
+
+    @classmethod
     def _client_kwargs(cls, endpoint_url: str | None) -> dict[str, Any]:
         """Build the keyword arguments for a service client."""
-        kwargs: dict[str, Any] = {"verify": config.ssl_verify}
+        cls._check_ssl_verify(endpoint_url)
+        kwargs: dict[str, Any] = {"verify": config.ssl_verify, "config": cls._botocore_config()}
         if endpoint_url:
             kwargs["endpoint_url"] = endpoint_url
         return kwargs
@@ -113,7 +168,8 @@ class AWSClients:
 
     @classmethod
     def reset_clients(cls) -> None:
-        """Reset all cached clients (useful for testing)."""
+        """Reset all cached clients (useful for testing, and after configure())."""
         cls._s3_client = None
         cls._textract_client = None
         cls._bedrock_runtime_client = None
+        cls._warned_insecure_endpoints = set()

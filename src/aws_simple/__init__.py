@@ -2,10 +2,14 @@
 aws-simple: A clean, simple wrapper around AWS services.
 
 Simplifies usage of AWS S3, Textract, and Bedrock through a clean API.
-Configuration is done entirely via environment variables.
+Configuration is read from environment variables (and an optional ``.env``
+file) by default; call ``configure()`` to override settings from code.
 
 Example usage:
-    from aws_simple import s3, textract, bedrock
+    from aws_simple import configure, s3, textract, bedrock
+
+    # Optional: override configuration programmatically instead of via env vars
+    configure(region="eu-west-3", bucket="my-bucket")
 
     # S3 operations
     s3.upload_file("doc.pdf", "docs/doc.pdf")
@@ -30,6 +34,7 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _version
 
 from . import bedrock, s3, textract
+from .config import configure
 from .exceptions import (
     AWSSimpleError,
     BedrockError,
@@ -50,6 +55,8 @@ __all__ = [
     "s3",
     "textract",
     "bedrock",
+    # Configuration
+    "configure",
     # Exceptions
     "AWSSimpleError",
     "BedrockError",

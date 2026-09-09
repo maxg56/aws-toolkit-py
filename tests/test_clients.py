@@ -1,14 +1,16 @@
 """Tests for the internal AWS client factory."""
 
+import warnings
 from collections.abc import Callable
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
+from botocore.config import Config as BotocoreConfig
 from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
 
 from aws_simple._clients import AWSClients
-from aws_simple.exceptions import ClientInitializationError
+from aws_simple.exceptions import ClientInitializationError, ConfigurationError
 
 EXPECTED_TWO = 2
 EXPECTED_THREE = 3
@@ -78,7 +80,7 @@ def test_get_s3_client_creates_client_with_region_and_ssl(
 
     assert client is expected
     mock_session.assert_called_once_with(region_name="us-west-2")
-    mock_session.return_value.client.assert_called_once_with("s3", verify=True)
+    mock_session.return_value.client.assert_called_once_with("s3", verify=True, config=ANY)
 
 
 def test_get_textract_client_uses_textract_region(
@@ -93,7 +95,7 @@ def test_get_textract_client_uses_textract_region(
         AWSClients.get_textract_client()
 
     mock_session.assert_called_once_with(region_name="eu-central-1")
-    mock_session.return_value.client.assert_called_once_with("textract", verify=True)
+    mock_session.return_value.client.assert_called_once_with("textract", verify=True, config=ANY)
 
 
 def test_get_bedrock_runtime_client_uses_bedrock_region(
@@ -108,17 +110,147 @@ def test_get_bedrock_runtime_client_uses_bedrock_region(
         AWSClients.get_bedrock_runtime_client()
 
     mock_session.assert_called_once_with(region_name="ap-southeast-2")
-    mock_session.return_value.client.assert_called_once_with("bedrock-runtime", verify=True)
+    mock_session.return_value.client.assert_called_once_with(
+        "bedrock-runtime", verify=True, config=ANY
+    )
 
 
-def test_ssl_verify_can_be_disabled(reset_clients: None, monkeypatch: pytest.MonkeyPatch) -> None:
-    """AWS_SSL_VERIFY=false disables certificate verification on the client."""
+def test_ssl_verify_can_be_disabled_for_a_custom_endpoint(
+    reset_clients: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AWS_SSL_VERIFY=false disables certificate verification for a non-AWS endpoint."""
+    monkeypatch.setenv("AWS_ENDPOINT_URL", "https://localhost:4566")
     monkeypatch.setenv("AWS_SSL_VERIFY", "false")
+
+    with pytest.warns(UserWarning, match="SSL certificate verification is disabled"):
+        with patch("aws_simple._clients.boto3.Session") as mock_session:
+            AWSClients.get_s3_client()
+
+    assert mock_session.return_value.client.call_args.kwargs["verify"] is False
+
+
+def test_ssl_verify_disabled_against_default_aws_endpoint_raises(
+    reset_clients: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without a custom endpoint, disabling verification targets real AWS and is refused."""
+    monkeypatch.setenv("AWS_SSL_VERIFY", "false")
+
+    with patch("aws_simple._clients.boto3.Session"):
+        with pytest.raises(ConfigurationError, match="cannot be disabled for an AWS endpoint"):
+            AWSClients.get_s3_client()
+
+
+@pytest.mark.parametrize(
+    "endpoint_url",
+    ["https://s3.amazonaws.com", "https://bucket.s3.us-east-1.amazonaws.com"],
+)
+def test_ssl_verify_disabled_against_amazonaws_endpoint_raises(
+    reset_clients: None, monkeypatch: pytest.MonkeyPatch, endpoint_url: str
+) -> None:
+    """An explicit *.amazonaws.com endpoint is still treated as real AWS."""
+    monkeypatch.setenv("AWS_ENDPOINT_URL", endpoint_url)
+    monkeypatch.setenv("AWS_SSL_VERIFY", "false")
+
+    with patch("aws_simple._clients.boto3.Session"):
+        with pytest.raises(ConfigurationError, match="cannot be disabled for an AWS endpoint"):
+            AWSClients.get_s3_client()
+
+
+def test_ssl_verify_warning_is_emitted_once_per_endpoint(
+    reset_clients: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    The insecure-endpoint warning does not repeat for every client built
+    against the same endpoint (S3, Textract and Bedrock all share it here).
+    """
+    monkeypatch.setenv("AWS_ENDPOINT_URL", "https://localhost:4566")
+    monkeypatch.setenv("AWS_INSECURE_DISABLE_SSL_VERIFY", "true")
+
+    with patch("aws_simple._clients.boto3.Session"):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            AWSClients.get_s3_client()
+            AWSClients.get_textract_client()
+            AWSClients.get_bedrock_runtime_client()
+
+    insecure_warnings = [w for w in caught if "SSL certificate verification" in str(w.message)]
+    assert len(insecure_warnings) == 1
+
+
+def test_legacy_ssl_verify_env_var_still_works_with_deprecation_warning(
+    reset_clients: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AWS_SSL_VERIFY is deprecated but still honoured, with a DeprecationWarning."""
+    monkeypatch.setenv("AWS_ENDPOINT_URL", "https://localhost:4566")
+    monkeypatch.setenv("AWS_SSL_VERIFY", "false")
+
+    with pytest.warns(DeprecationWarning, match="AWS_SSL_VERIFY is deprecated"):
+        with patch("aws_simple._clients.boto3.Session") as mock_session:
+            AWSClients.get_s3_client()
+
+    assert mock_session.return_value.client.call_args.kwargs["verify"] is False
+
+
+def test_new_ssl_verify_env_var_takes_precedence_over_legacy(
+    reset_clients: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AWS_INSECURE_DISABLE_SSL_VERIFY wins over the legacy AWS_SSL_VERIFY."""
+    monkeypatch.setenv("AWS_ENDPOINT_URL", "https://localhost:4566")
+    # Legacy var alone would disable verification ("false" == disable)...
+    monkeypatch.setenv("AWS_SSL_VERIFY", "false")
+    # ...but the new var explicitly says not to, and must win.
+    monkeypatch.setenv("AWS_INSECURE_DISABLE_SSL_VERIFY", "false")
 
     with patch("aws_simple._clients.boto3.Session") as mock_session:
         AWSClients.get_s3_client()
 
-    assert mock_session.return_value.client.call_args.kwargs["verify"] is False
+    assert mock_session.return_value.client.call_args.kwargs["verify"] is True
+
+
+# ---------------------------------------------------------------------------
+# retry / timeout configuration (botocore Config)
+# ---------------------------------------------------------------------------
+
+
+def test_default_botocore_config(reset_clients: None) -> None:
+    """Without overrides, retries/timeouts use the documented defaults."""
+    with patch("aws_simple._clients.boto3.Session") as mock_session:
+        AWSClients.get_s3_client()
+
+    botocore_config = mock_session.return_value.client.call_args.kwargs["config"]
+    assert isinstance(botocore_config, BotocoreConfig)
+    assert botocore_config.retries == {"max_attempts": 3, "mode": "standard"}
+    assert botocore_config.connect_timeout == 10
+    assert botocore_config.read_timeout == 60
+
+
+def test_botocore_config_is_overridable_via_env(
+    reset_clients: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Retry/timeout env vars flow into the botocore Config handed to boto3."""
+    monkeypatch.setenv("AWS_MAX_ATTEMPTS", "5")
+    monkeypatch.setenv("AWS_RETRY_MODE", "adaptive")
+    monkeypatch.setenv("AWS_CONNECT_TIMEOUT", "3")
+    monkeypatch.setenv("AWS_READ_TIMEOUT", "120")
+
+    with patch("aws_simple._clients.boto3.Session") as mock_session:
+        AWSClients.get_s3_client()
+
+    botocore_config = mock_session.return_value.client.call_args.kwargs["config"]
+    assert botocore_config.retries == {"max_attempts": 5, "mode": "adaptive"}
+    assert botocore_config.connect_timeout == 3
+    assert botocore_config.read_timeout == 120
+
+
+def test_botocore_config_is_passed_to_every_service(reset_clients: None) -> None:
+    """S3, Textract and Bedrock all receive the same botocore Config."""
+    with patch("aws_simple._clients.boto3.Session") as mock_session:
+        AWSClients.get_s3_client()
+        AWSClients.get_textract_client()
+        AWSClients.get_bedrock_runtime_client()
+
+    for call in mock_session.return_value.client.call_args_list:
+        assert isinstance(call.kwargs["config"], BotocoreConfig)
 
 
 # ---------------------------------------------------------------------------
@@ -378,7 +510,7 @@ def test_global_endpoint_url_applies_to_every_service(
         getter()
 
     mock_session.return_value.client.assert_called_once_with(
-        service, verify=True, endpoint_url="http://localhost:4566"
+        service, verify=True, config=ANY, endpoint_url="http://localhost:4566"
     )
 
 
@@ -405,7 +537,7 @@ def test_per_service_endpoint_url_overrides_the_global_one(
         getter()
 
     mock_session.return_value.client.assert_called_once_with(
-        service, verify=True, endpoint_url="http://localhost:9000"
+        service, verify=True, config=ANY, endpoint_url="http://localhost:9000"
     )
 
 
@@ -416,11 +548,12 @@ def test_endpoint_url_combines_with_disabled_ssl_verify(
     monkeypatch.setenv("AWS_ENDPOINT_URL", "https://localhost:4566")
     monkeypatch.setenv("AWS_SSL_VERIFY", "false")
 
-    with patch("aws_simple._clients.boto3.Session") as mock_session:
-        AWSClients.get_s3_client()
+    with pytest.warns(UserWarning):
+        with patch("aws_simple._clients.boto3.Session") as mock_session:
+            AWSClients.get_s3_client()
 
     mock_session.return_value.client.assert_called_once_with(
-        "s3", verify=False, endpoint_url="https://localhost:4566"
+        "s3", verify=False, config=ANY, endpoint_url="https://localhost:4566"
     )
 
 

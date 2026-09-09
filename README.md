@@ -5,8 +5,9 @@ A clean, simple Python wrapper around AWS services (S3, Textract, Bedrock).
 ## Features
 
 - **Simple API**: Clean, intuitive interface without exposing Boto3 complexity
-- **Environment-based configuration**: No credentials or config in code
+- **Environment-based configuration**: No credentials or config in code, with a `configure()` escape hatch for code-driven settings
 - **Custom endpoints**: Works against LocalStack, MinIO or any S3-compatible stack
+- **Tuned for real workloads**: Configurable retries/timeouts (standard retry mode, throttling-aware defaults)
 - **Structured Textract output**: Transforms AWS Blocks into clean, serializable JSON
 - **Type-safe**: Fully typed with Python 3.10+ support
 - **Production-ready**: Works with IAM roles, Docker, CI/CD pipelines
@@ -25,7 +26,9 @@ pip install -e .
 
 ## Configuration
 
-All configuration is done via environment variables:
+Configuration can come from environment variables, a `.env` file, or the
+[`configure()`](#programmatic-configuration) function — see
+[Configuration precedence](#configuration-precedence) below.
 
 ```bash
 # Required
@@ -37,7 +40,6 @@ export AWS_PROFILE=my-profile  # For local development
 export AWS_BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
 export AWS_TEXTRACT_REGION=us-east-1
 export AWS_BEDROCK_REGION=us-east-1
-export AWS_SSL_VERIFY=true  # SSL certificate verification (default: true, set to false to disable)
 
 # Optional: custom endpoints (LocalStack, MinIO, any S3-compatible stack)
 export AWS_ENDPOINT_URL=http://localhost:4566        # applies to every service
@@ -49,9 +51,72 @@ export AWS_BEDROCK_ENDPOINT_URL=http://localhost:4566
 export AWS_ACCESS_KEY_ID=...
 export AWS_SECRET_ACCESS_KEY=...
 export AWS_SESSION_TOKEN=...   # only for temporary credentials
+
+# Optional: retry / timeout tuning, see "Retries and timeouts" below
+export AWS_MAX_ATTEMPTS=3
+export AWS_RETRY_MODE=standard
+export AWS_CONNECT_TIMEOUT=10
+export AWS_READ_TIMEOUT=60
 ```
 
 Or use a `.env` file (see [.env.example](.env.example)).
+
+### Configuration precedence
+
+For any given setting: a `configure()` call wins, then the specific
+environment variable, then the variable's documented default. A `.env` file
+is just a way to populate environment variables (via `python-dotenv`) before
+the process starts, so it sits at the same precedence level as `export`ing
+the variable yourself.
+
+### Programmatic configuration
+
+Reach for `configure()` when settings come from your own config file,
+Parameter Store, CLI flags, or anywhere else that isn't an environment
+variable — or simply to override one setting from code without touching
+`os.environ`:
+
+```python
+from aws_simple import configure
+
+configure(region="eu-west-3", bucket="my-bucket", endpoint_url="http://localhost:4566")
+```
+
+Passing a value overrides it; omitting a parameter (leaving it `None`) keeps
+whatever was configured before, whether that came from an earlier
+`configure()` call or an environment variable. Calling `configure()` also
+resets every cached AWS client, so the very next S3/Textract/Bedrock call is
+built from the new settings — without it, a client already built for the old
+region would otherwise keep being reused silently.
+
+`configure()` accepts: `region`, `profile`, `endpoint_url`, `bucket`,
+`s3_endpoint_url`, `textract_region`, `textract_endpoint_url`,
+`bedrock_region`, `bedrock_endpoint_url`, `bedrock_model_id`,
+`access_key_id`, `secret_access_key`, `session_token`, `max_attempts`,
+`retry_mode`, `connect_timeout`, `read_timeout`.
+
+There is no per-call region/bucket override on `s3`/`textract`/`bedrock`
+functions themselves — for multi-region or multi-tenant use, call
+`configure()` again before the calls that need the other settings.
+
+### Retries and timeouts
+
+Every client is built with a `botocore.config.Config` derived from these
+variables:
+
+| Setting | Env var | Default |
+|---|---|---|
+| Max retry attempts | `AWS_MAX_ATTEMPTS` | 3 |
+| Retry mode | `AWS_RETRY_MODE` | `standard` |
+| Connect timeout (s) | `AWS_CONNECT_TIMEOUT` | 10 |
+| Read timeout (s) | `AWS_READ_TIMEOUT` | 60 |
+
+This is a **behaviour change from botocore's own defaults** (`legacy` retry
+mode, 5 attempts, 60s connect/read timeouts): `standard` mode retries a
+broader, more correct set of errors (including throttling), which matters a
+lot for Bedrock (`ThrottlingException` under load) and Textract (bursty
+synchronous calls). If you were relying on `legacy` mode's narrower retry
+behaviour, set `AWS_RETRY_MODE=legacy` explicitly.
 
 ### Custom endpoints (LocalStack / MinIO)
 
@@ -69,8 +134,9 @@ export AWS_ACCESS_KEY_ID=test
 export AWS_SECRET_ACCESS_KEY=test
 ```
 
-If the local stack serves a self-signed certificate, `AWS_SSL_VERIFY=false`
-disables verification. Never do that against a real AWS endpoint.
+If the local stack serves a self-signed certificate, see "Development only:
+disabling SSL verification" below — verification can only be turned off for
+a custom endpoint like this one, never for a real AWS endpoint.
 
 ### AWS Credentials
 
@@ -97,6 +163,31 @@ pair.
 Credential values are never logged, never included in a `Config` repr, and are
 scrubbed out of `ClientInitializationError` messages, so a boto3 error quoting a
 key does not propagate it.
+
+## Development only: disabling SSL verification
+
+`AWS_INSECURE_DISABLE_SSL_VERIFY=true` disables TLS certificate verification
+— only ever do this against a local stack with a self-signed certificate
+(LocalStack, MinIO), never against real AWS:
+
+```bash
+export AWS_ENDPOINT_URL=https://localhost:4566
+export AWS_INSECURE_DISABLE_SSL_VERIFY=true
+```
+
+This cannot be used to weaken a real connection to AWS: if no custom
+`endpoint_url` is configured, or the configured one resolves to an
+`amazonaws.com` host, the library raises `ConfigurationError` instead of
+silently building an insecure client — a variable set for local development
+and later inherited into staging or production (a shared `.env`, a Docker
+Compose base file, a CI export) cannot end up disabling verification against
+production AWS traffic without you noticing. When it *is* honoured for a
+genuine custom endpoint, a `UserWarning` naming that endpoint is emitted the
+first time a client is built with verification off.
+
+The older `AWS_SSL_VERIFY` variable still works for one more minor version —
+note that its polarity is the opposite of the new one (`AWS_SSL_VERIFY=false`
+disabled verification) — and emits a `DeprecationWarning` when used.
 
 ## Usage
 
@@ -348,7 +439,7 @@ except TextractError as e:
 # Install with dev dependencies
 pip install -e ".[dev]"
 
-# Run tests
+# Run unit tests (fast, mocked boto3 — this is what `pytest` runs by default)
 pytest
 
 # Type checking
@@ -357,6 +448,29 @@ mypy src/
 # Linting
 ruff check src/
 ```
+
+### Integration tests (LocalStack)
+
+The unit suite mocks every boto3 call, which is fast but only proves *what*
+we call, never that S3 actually accepts the request as built (pagination
+tokens, `MaxKeys`, the 404 branch of `head_object`, ...). `tests/integration/`
+covers that against a real LocalStack instance and is excluded from the
+default `pytest` run (`-m "not integration"` in `pyproject.toml`):
+
+```bash
+# Start LocalStack (S3 only) in the background
+docker run -d --rm -p 4566:4566 -e SERVICES=s3 localstack/localstack:3
+
+# Run just the integration suite against it
+pytest -m integration --no-cov
+```
+
+It targets `AWS_ENDPOINT_URL` (default `http://localhost:4566`) with
+`AWS_ACCESS_KEY_ID=test` / `AWS_SECRET_ACCESS_KEY=test`, and every test skips
+cleanly if nothing is listening there. CI runs it in its own job against a
+LocalStack service container; a failure there is reported but does not block
+the rest of CI, since it is as likely to be container startup flakiness as an
+actual regression.
 
 ## Requirements
 

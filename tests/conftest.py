@@ -23,6 +23,12 @@ ISOLATED_ENV_VARS = (
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
     "AWS_SESSION_TOKEN",
+    "AWS_SSL_VERIFY",
+    "AWS_INSECURE_DISABLE_SSL_VERIFY",
+    "AWS_MAX_ATTEMPTS",
+    "AWS_RETRY_MODE",
+    "AWS_CONNECT_TIMEOUT",
+    "AWS_READ_TIMEOUT",
 )
 
 
@@ -34,6 +40,16 @@ def mock_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AWS_BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0")
     for name in ISOLATED_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def reset_config_overrides() -> Generator[None, None, None]:
+    """Clear configure() overrides before and after each test."""
+    from aws_simple.config import config
+
+    config._overrides.clear()
+    yield
+    config._overrides.clear()
 
 
 @pytest.fixture
