@@ -112,13 +112,13 @@ jobs:
 
         missing = []
 
-wheels = glob.glob("dist/*.whl")
-if not wheels:
-    sys.exit("No wheel found in dist/")
-for wheel in wheels:
-    with zipfile.ZipFile(wheel) as zf:
-        if "aws_simple/py.typed" not in zf.namelist():
-            missing.append(wheel)
+        wheels = glob.glob("dist/*.whl")
+        if not wheels:
+          sys.exit("No wheel found in dist/")
+        for wheel in wheels:
+          with zipfile.ZipFile(wheel) as zf:
+              if "aws_simple/py.typed" not in zf.namelist():
+                missing.append(wheel)
 
         (sdist,) = glob.glob("dist/*.tar.gz")
         with tarfile.open(sdist) as tf:
