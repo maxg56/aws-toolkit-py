@@ -102,6 +102,34 @@ jobs:
       run: |
         twine check dist/*
 
+    - name: Assert py.typed marker is shipped (PEP 561)
+      run: |
+        python - <<'EOF'
+        import glob
+        import sys
+        import tarfile
+        import zipfile
+
+        missing = []
+
+wheels = glob.glob("dist/*.whl")
+if not wheels:
+    sys.exit("No wheel found in dist/")
+for wheel in wheels:
+    with zipfile.ZipFile(wheel) as zf:
+        if "aws_simple/py.typed" not in zf.namelist():
+            missing.append(wheel)
+
+        (sdist,) = glob.glob("dist/*.tar.gz")
+        with tarfile.open(sdist) as tf:
+            if not any(n.endswith("/src/aws_simple/py.typed") for n in tf.getnames()):
+                missing.append(sdist)
+
+        if missing:
+            sys.exit("py.typed marker missing from: " + ", ".join(missing))
+        print("py.typed present in wheel and sdist")
+        EOF
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
