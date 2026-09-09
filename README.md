@@ -448,6 +448,56 @@ mypy src/
 ruff check src/
 ```
 
+## Integration tests (LocalStack)
+
+The default `pytest` run is unit-only: every test mocks boto3, so it is fast
+and needs no network. Those tests assert *what the library calls*, never that
+the call works — a wrong parameter name or a bad pagination token would pass
+them all.
+
+The `tests/integration/` suite closes that gap by running the same S3
+functions against a real S3 implementation over HTTP. It is marked
+`integration` and deselected by default, so it never slows down or breaks an
+ordinary test run.
+
+```bash
+# Unit tests only (the default; no endpoint needed)
+pytest
+
+# Start an S3 endpoint, then run the integration suite
+docker run --rm -d -p 4566:4566 -e SERVICES=s3 localstack/localstack:3
+pytest -m integration          # or: make test-integration
+```
+
+LocalStack is driven purely through the library's public configuration —
+`AWS_ENDPOINT_URL` and the credential variables — so the suite exercises the
+same code path as a real deployment. Nothing patches library internals.
+
+**What it covers:** the `list_objects` `ContinuationToken` pagination path
+past S3's 1000-key page size, `max_keys` trimming across that boundary,
+`object_exists` on a missing key (the `HeadObject` 404 branch),
+`put_object` / `read_object` round trips including UTF-8 and empty bodies,
+`upload_file` / `download_file`, `delete_object` idempotence, and
+`copy_object` within and across buckets — including keys that need URL
+encoding, where a real endpoint rejects what a mock accepts.
+
+Scoped to S3 on purpose: LocalStack's free tier does not meaningfully emulate
+Textract or Bedrock.
+
+Environment variables the suite honours:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `AWS_ENDPOINT_URL` | `http://127.0.0.1:4566` | Endpoint to test against; any S3-compatible endpoint works |
+| `AWS_SIMPLE_INTEGRATION_TIMEOUT` | `60` | Seconds to wait for the endpoint to answer before giving up |
+| `AWS_SIMPLE_INTEGRATION_REQUIRED` | unset | When truthy, an unreachable endpoint fails instead of skipping |
+
+Without a reachable endpoint the suite skips itself, so `pytest -m
+integration` is harmless on a machine without LocalStack. CI sets
+`AWS_SIMPLE_INTEGRATION_REQUIRED=1` in its own standalone
+`Integration Tests (LocalStack)` job, so a job whose container never came up
+fails loudly instead of passing green with everything skipped.
+
 ## Requirements
 
 - Python ≥ 3.10

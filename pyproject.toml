@@ -80,7 +80,13 @@ addopts = [
     "--cov=aws_simple",
     "--cov-report=term-missing",
     "--cov-report=html",
+    # Integration tests need a live S3 endpoint (LocalStack), so a bare
+    # `pytest` run stays unit-only and fast. Run them with `pytest -m
+    # integration`, which overrides this marker expression.
+    "-m",
+    "not integration",
 ]
 markers = [
     "unit: Unit tests",
+    "integration: Tests requiring a live AWS-compatible endpoint (LocalStack); deselected by default",
 ]
